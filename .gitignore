@@ -1,0 +1,14 @@
+# Arquivos gerados
+build/
+*.rbxl
+*.rbxlx
+sourcemap.json
+roblox.yml
+
+# Locks do Roblox Studio
+*.rbxl.lock
+*.rbxlx.lock
+
+# Sistema
+.DS_Store
+Thumbs.db

@@ -1,0 +1,31 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Rojo: iniciar sincronização (serve)",
+			"type": "shell",
+			"command": "rojo serve default.project.json",
+			"isBackground": true,
+			"problemMatcher": [],
+			"group": { "kind": "build", "isDefault": true }
+		},
+		{
+			"label": "Rojo: gerar place (build)",
+			"type": "shell",
+			"command": "rojo build default.project.json -o ReinoDasAbelhas.rbxlx",
+			"problemMatcher": []
+		},
+		{
+			"label": "Verificar código (selene)",
+			"type": "shell",
+			"command": "selene src",
+			"problemMatcher": []
+		},
+		{
+			"label": "Formatar código (stylua)",
+			"type": "shell",
+			"command": "stylua src",
+			"problemMatcher": []
+		}
+	]
+}

@@ -1,0 +1,44 @@
+{
+	"name": "ReinoDasAbelhas",
+	"servePort": 34872,
+	"tree": {
+		"$className": "DataModel",
+
+		"ReplicatedStorage": {
+			"Shared": {
+				"$path": "src/shared"
+			},
+			"Assets": {
+				"$path": "assets"
+			}
+		},
+
+		"ServerScriptService": {
+			"Server": {
+				"$path": "src/server"
+			}
+		},
+
+		"StarterPlayer": {
+			"$properties": {
+				"CameraMode": "LockFirstPerson",
+				"CharacterWalkSpeed": 16,
+				"CharacterUseJumpPower": false,
+				"CharacterJumpHeight": 0,
+				"LoadCharacterAppearance": false
+			},
+			"StarterPlayerScripts": {
+				"Client": {
+					"$path": "src/client"
+				}
+			}
+		},
+
+		"Lighting": {
+			"$properties": {
+				"ClockTime": 14,
+				"Brightness": 2
+			}
+		}
+	}
+}

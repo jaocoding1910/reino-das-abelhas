@@ -1,0 +1,250 @@
+--!strict
+--[[
+	Config — balanceamento central do Reino das Abelhas.
+
+	TODO valor de jogo (custo, dano, tempo, chance) mora aqui.
+	Servidor e cliente leem deste módulo; só o servidor decide resultados.
+	Para ajustar o jogo, edite este arquivo e salve: o Rojo sincroniza na hora.
+]]
+
+local Config = {}
+
+-- Raridades de favos -------------------------------------------------------
+-- Ordem importa: usada em UI e em sorteios. Épico/lendário ficam para depois.
+Config.RarityOrder = { "Comum", "Medio", "Raro" }
+
+Config.Rarities = {
+	Comum = {
+		DisplayName = "Favo de Cera",
+		Label = "Comum",
+		BuildContribution = 1,
+		Color = Color3.fromRGB(245, 235, 200),
+		Shape = "Hexagono",
+		Effect = "Nenhum",
+	},
+	Medio = {
+		DisplayName = "Favo de Mel",
+		Label = "Médio",
+		BuildContribution = 3,
+		Color = Color3.fromRGB(255, 176, 40),
+		Shape = "HexagonoDuplo",
+		Effect = "Brilho",
+	},
+	Raro = {
+		DisplayName = "Favo Real",
+		Label = "Raro",
+		BuildContribution = 8,
+		Color = Color3.fromRGB(170, 90, 255),
+		Shape = "Cristal",
+		Effect = "Particulas",
+		-- Segundos removidos do tempo restante de uma célula em construção.
+		BuildTimeReduction = 20,
+	},
+}
+
+-- Coleta e transporte -----------------------------------------------------
+Config.Collection = {
+	MaxDistance = 14, -- studs entre abelha e recurso
+	InteractTime = 0.8, -- segundos segurando para coletar
+	NectarPerFlower = 3, -- néctar por flor coletada
+	MinIntervalBetweenActions = 0.25, -- anti-spam no servidor
+	FlowerRespawnTime = 30,
+	CombRespawnTime = { Comum = 45, Medio = 120, Raro = 300 },
+}
+
+Config.Carry = {
+	BaseCapacity = 10, -- unidades de carga
+	NectarWeight = 1,
+	CombWeight = { Comum = 1, Medio = 2, Raro = 3 },
+	SpeedPenaltyPerWeight = 0.02, -- -2% de velocidade por unidade
+	MaxSpeedPenalty = 0.35, -- nunca perde mais que 35%
+}
+
+Config.NectarToHoneyRate = 2 -- 1 néctar entregue = 2 de mel
+
+-- Voo ---------------------------------------------------------------------
+Config.Flight = {
+	BaseSpeed = 28,
+	VerticalSpeed = 18,
+	Acceleration = 6,
+	MaxAltitude = 600,
+}
+
+-- Mapa (gerado por código em World/MapBuilder) ---------------------------
+Config.Map = {
+	Seed = 2026, -- mesma semente = mesmo mapa sempre
+	FlowerCount = 70,
+	CombCount = 25, -- comuns, no campo
+	MediumCombCount = 14, -- médios, no bosque (pés das árvores e cogumelos)
+	RareCombCount = 6, -- raros, no alto das copas (difícil de chegar)
+	TreeCount = 18,
+	MushroomCount = 22,
+	PlotCount = 8, -- colmeias = máximo de jogadores por servidor
+	PlotRingRadius = 150,
+	FieldRadius = { Min = 230, Max = 470 }, -- campo inicial (flores e favos comuns)
+	ForestRadius = { Min = 500, Max = 820 }, -- bosque (favos médios e raros)
+	SunflowerChance = 0.3, -- parte das flores vira girassol
+	CrystalCount = 14, -- cristais roxos decorativos no bosque
+	BridgeHeight = 72, -- altura das pontes entre as árvores-colmeia
+	RoyalHive = {
+		Position = Vector3.new(0, 0, -880), -- palácio da Colmeia Real (norte do mapa)
+		PlateauHeight = 70,
+		RareCombs = 3, -- favos raros extras nas torres
+	},
+}
+
+-- Regiões (o servidor decide; o cliente só mostra o aviso) ------------------
+-- Colmeias e Campo: protegidas (sem predadores e sem combate).
+-- Bosque: predadores, sem combate.
+-- Disputa: copas altas do bosque e a Colmeia Real (predadores e combate).
+Config.Regions = {
+	HiveRadius = 230, -- distância do centro até onde vai a área das colmeias
+	SafeRadius = 490, -- até aqui (campo inicial) é protegido
+	DisputeAltitude = 85, -- acima disso, no bosque, é zona de disputa
+	RoyalRadius = 230, -- em volta da Colmeia Real é zona de disputa
+}
+
+-- Mundo e ciclo dia/noite -------------------------------------------------
+Config.DayNight = {
+	DayDuration = 12 * 60,
+	NightDuration = 6 * 60,
+	TransitionDuration = 30,
+	WarnBeforeNight = 60,
+	StartClockTime = 9, -- hora em que o servidor começa (9h da manhã)
+	NightRareChanceMultiplier = 2, -- Etapa C
+}
+
+-- Saúde, derrota e penalidade ---------------------------------------------
+Config.Health = {
+	Max = 100,
+	RespawnDelay = 5,
+	SpawnProtection = 8, -- segundos; cancelado ao atacar
+	DroppedCargoLifetime = 60,
+	RegenPerSecondInSafeZone = 4, -- recupera vida em área protegida
+}
+
+Config.DeathPenalty = {
+	Enabled = true,
+	-- Só se a morte for causada por predador. Pontos percentuais em UMA célula inacabada.
+	PredatorBuildProgressLoss = 5,
+}
+
+-- Combate entre jogadores (só em regiões de disputa) -----------------------
+Config.Combat = {
+	Damage = 15,
+	Cooldown = 0.9,
+	Range = 9, -- studs
+	FrontDot = 0.2, -- o alvo precisa estar à frente (0 = 90°, 1 = reto)
+}
+
+-- Predadores --------------------------------------------------------------
+Config.Predators = {
+	Spider = {
+		Count = 6,
+		DetectionRange = 40,
+		TerritoryRadius = 60,
+		MoveSpeed = 20, -- studs por segundo perseguindo
+		MaxClimb = 28, -- até que altura acima da teia ela alcança (fuja voando alto!)
+		AttackRange = 9,
+		AttackDamage = 20,
+		AttackWindup = 1.0, -- tempo de aviso antes do golpe
+		AttackCooldown = 2.5,
+		WebRadius = 10, -- encostar na teia desacelera
+		WebSlowMultiplier = 0.5,
+		WebSlowDuration = 3,
+		DayActivityMultiplier = 0.6, -- de dia enxerga menos
+		NightActivityMultiplier = 1.6, -- à noite enxerga e corre mais
+	},
+}
+
+-- Melhorias compradas com mel ----------------------------------------------
+Config.UpgradeOrder = { "Velocidade", "Capacidade", "Resistencia" }
+
+Config.Upgrades = {
+	-- Velocidade: +6% de velocidade de voo por nível.
+	Velocidade = {
+		DisplayName = "Velocidade",
+		MaxLevel = 5,
+		BaseCost = 60,
+		CostGrowth = 1.6,
+		BonusPerLevel = 0.06,
+	},
+	-- Capacidade: +2 de carga por nível.
+	Capacidade = {
+		DisplayName = "Capacidade",
+		MaxLevel = 5,
+		BaseCost = 80,
+		CostGrowth = 1.6,
+		BonusPerLevel = 2,
+	},
+	-- Resistência: +10 de vida por nível (vale a partir da Etapa C).
+	Resistencia = {
+		DisplayName = "Resistência",
+		MaxLevel = 5,
+		BaseCost = 100,
+		CostGrowth = 1.7,
+		BonusPerLevel = 10,
+	},
+}
+
+Config.Specialties = {
+	Veloz = { SpeedMultiplier = 1.15, CapacityMultiplier = 0.8, HealthMultiplier = 1 },
+	Transportadora = { SpeedMultiplier = 0.9, CapacityMultiplier = 1.35, HealthMultiplier = 1 },
+	Guardia = { SpeedMultiplier = 0.92, CapacityMultiplier = 1, HealthMultiplier = 1.3 },
+}
+
+-- Colmeia -----------------------------------------------------------------
+Config.Hive = {
+	InitialCells = 3,
+	Rings = 3, -- anéis hexagonais: 1 + 6 + 12 + 18 = 37 células
+	MaxCells = 37,
+	CellCombCost = 10, -- pontos de favo para levar uma célula de 0% a 100%
+	CellHoneyCost = 50, -- mel pago para iniciar a célula
+	CellSide = 3, -- tamanho do lado do hexágono (studs)
+	CellBuildTime = 60, -- Etapa B: tempo de acabamento (favo raro reduz)
+	StoragePerCell = 100, -- Etapa B
+}
+
+-- Progressão --------------------------------------------------------------
+Config.Titles = {
+	{ Name = "Abelha iniciante", RequiredCells = 0, RequiredHoney = 0 },
+	{ Name = "Coletora", RequiredCells = 5, RequiredHoney = 500 },
+	{ Name = "Construtora", RequiredCells = 12, RequiredHoney = 2000 },
+	{ Name = "Líder", RequiredCells = 24, RequiredHoney = 6000 },
+	{ Name = "Rei da Colmeia", RequiredCells = 37, RequiredHoney = 15000 },
+}
+
+-- Nível e experiência ------------------------------------------------------
+Config.Progression = {
+	XP = {
+		NectarPerUnit = 1,
+		Comb = { Comum = 5, Medio = 15, Raro = 40 },
+		CellCompleted = 60,
+		HoneyDelivered = 0.2, -- XP por unidade de mel entregue
+	},
+	LevelBase = 100, -- XP do nível 1 para o 2
+	LevelGrowth = 1.35, -- cada nível pede 35% a mais
+	MaxLevel = 99,
+}
+
+-- Acessórios cosméticos (sem Robux; comprados com mel) -----------------------
+Config.CosmeticOrder = { "Oculos", "Chapeu", "Lenco" }
+Config.Cosmetics = {
+	Oculos = { DisplayName = "Óculos de voo", Price = 150 },
+	Chapeu = { DisplayName = "Chapéu", Price = 200 },
+	Lenco = { DisplayName = "Lenço vermelho", Price = 120 },
+}
+
+-- Salvamento --------------------------------------------------------------
+Config.Data = {
+	DataStoreName = "ReinoDasAbelhas_v1",
+	AutosaveInterval = 120,
+	MaxRetries = 3,
+}
+
+-- Depuração ---------------------------------------------------------------
+Config.Debug = {
+	Verbose = true, -- logs extras no Output
+}
+
+return Config

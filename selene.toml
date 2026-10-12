@@ -1,0 +1,6 @@
+std = "roblox"
+
+[lints]
+# Os módulos usam self em métodos declarados com ":" (padrão Init/Start).
+unused_variable = "warn"
+shadowing = "warn"
