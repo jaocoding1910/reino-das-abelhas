@@ -75,6 +75,19 @@ function PlayerDataService.Migrate(data: any): Types.Profile
 			target[listName] = list
 		end
 	end
+	if type(data.Royal) == "table" then
+		local r = data.Royal
+		if type(r.Kind) == "string" and type(r.Goal) == "number" then
+			profile.Royal = {
+				Kind = r.Kind,
+				Text = if type(r.Text) == "string" then r.Text else "",
+				Goal = r.Goal,
+				Progress = tonumber(r.Progress) or 0,
+				Honey = tonumber(r.Honey) or 0,
+				XP = tonumber(r.XP) or 0,
+			}
+		end
+	end
 	if type(data.Cells) == "table" then
 		local cells = {}
 		for _, cell in data.Cells do

@@ -27,6 +27,9 @@ local EVENTS = {
 	"WorldUpdated", -- servidor → todos: dia/noite, avisos
 	"Notify", -- servidor → cliente: mensagens na tela
 	"Effect", -- servidor → todos: efeitos visuais (acerto, coleta, derrota)
+	"RequestRoyal", -- cliente → servidor: "Aceitar" ou "Receber" pedido da Rainha
+	"RequestClan", -- cliente → servidor: "Criar" (nome), "Entrar" (nome) ou "Sair"
+	"DailyReward", -- servidor → cliente: recompensa diária (sequência, mel)
 }
 
 local FUNCTIONS = {

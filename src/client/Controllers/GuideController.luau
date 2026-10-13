@@ -7,6 +7,7 @@
 	- Missão de néctar → flor mais perto que ainda tem néctar.
 	- Missão de favo (comum/médio/raro) → favo disponível mais perto.
 	- Missão de célula → parede da colmeia.
+	- Pedido da Rainha pronto → a Rainha, na Colmeia Real.
 	- Missão de melhoria → sem trilha (é no painel: tecla 2).
 	Perto do alvo (menos de 16 studs), a trilha some.
 
@@ -108,6 +109,10 @@ local function chooseTarget(from: Vector3): (Vector3?, string?)
 
 	if full or (carrying and (kind == "Mel" or kind == "Celula")) then
 		return s.DeliveryPosition, "Entregue no pote"
+	end
+	local royal = s.Royal
+	if royal and royal.Ready and royal.Position then
+		return royal.Position, "Rainha"
 	end
 	if kind == "Nectar" or kind == "Mel" then
 		return nearest(nectarPrompts, from, nil), "Néctar"

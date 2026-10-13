@@ -18,6 +18,7 @@ local Log = require(Shared.Util.Log)
 local Regions = require(Shared.Regions)
 local Remotes = require(Shared.Remotes)
 
+local ClanService = require(script.Parent.ClanService)
 local HealthService = require(script.Parent.HealthService)
 local Notifier = require(script.Parent.Parent.Lib.Notifier)
 
@@ -63,7 +64,11 @@ local function attack(attacker: Player)
 	local look = root.CFrame.LookVector
 	local best, bestDistance = nil, Config.Combat.Range + 2 -- margem para latência
 	for _, other in Players:GetPlayers() do
-		if other ~= attacker and HealthService.IsAlive(other) then
+		if
+			other ~= attacker
+			and HealthService.IsAlive(other)
+			and not ClanService.SameClan(attacker, other)
+		then
 			local otherRoot = rootOf(other)
 			if otherRoot and Regions.AllowsPvP(Regions.Classify(otherRoot.Position)) then
 				local offset = otherRoot.Position - root.Position

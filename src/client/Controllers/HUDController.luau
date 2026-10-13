@@ -36,6 +36,7 @@ local Remotes = require(Shared.Remotes)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local W = require(script.Parent.Parent.UI.Widgets)
 local FlightController = require(script.Parent.FlightController)
+local SocialController = require(script.Parent.SocialController)
 
 local HUDController = {}
 
@@ -153,6 +154,15 @@ local function buildTopLeft(gui: ScreenGui)
 		TextColor3 = Theme.Colors.Text,
 		TextStrokeTransparency = 0.4,
 	})
+
+	-- Pedido da Rainha (só aparece quando há um pedido ativo).
+	refs.RoyalLine =
+		W.Text("PedidoRainha", "", UDim2.fromOffset(322, 18), UDim2.fromOffset(16, LEFT_TOP + 198), gui, {
+			Font = Theme.Font,
+			TextColor3 = Theme.Colors.Gold,
+			TextStrokeTransparency = 0.4,
+			Visible = false,
+		})
 end
 
 local function buildTopCenter(gui: ScreenGui)
@@ -969,6 +979,15 @@ local function render()
 		refs.MissionReward.Text = `+{quest.Honey} mel`
 	end
 	refs.Hint.Text = hintFor(s)
+	local royal = s.Royal
+	if royal and royal.Active then
+		refs.RoyalLine.Visible = true
+		refs.RoyalLine.Text = if royal.Ready
+			then "👑 Pedido da Rainha pronto! Volte à Colmeia Real"
+			else `👑 Rainha: {royal.Text} ({royal.Progress}/{royal.Goal})`
+	else
+		refs.RoyalLine.Visible = false
+	end
 
 	-- Mel com contador subindo.
 	if displayedHoney == nil then
@@ -1217,7 +1236,7 @@ local function runAction(index: number)
 	elseif index == 2 then
 		setHivePanel(not panelOpen)
 	elseif index == 3 then
-		showToast("Clãs chegam em breve: junte abelhas numa mesma colônia!", "info")
+		SocialController.ToggleClan()
 	end
 end
 

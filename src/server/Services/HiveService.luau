@@ -27,6 +27,7 @@ local Log = require(Shared.Util.Log)
 local Types = require(Shared.Types)
 
 local Hex = require(script.Parent.Parent.World.Hex)
+local ClanService = require(script.Parent.ClanService)
 local Notifier = require(script.Parent.Parent.Lib.Notifier)
 local InventoryService = require(script.Parent.InventoryService)
 local PlayerDataService = require(script.Parent.PlayerDataService)
@@ -368,6 +369,11 @@ function HiveService.TryDeliver(player: Player, index: number, maxDistance: numb
 	local profile = PlayerDataService.Get(player)
 
 	local honey = cargo.Nectar * Config.NectarToHoneyRate
+	local clanBonus = 0
+	if honey > 0 and ClanService.HasOnlineMate(player) then
+		clanBonus = math.floor(honey * Config.Clan.HoneyBonus + 0.5)
+		honey += clanBonus
+	end
 	local points = 0
 	for rarity, amount in cargo.Combs do
 		points += amount * Config.Rarities[rarity].BuildContribution
@@ -378,7 +384,12 @@ function HiveService.TryDeliver(player: Player, index: number, maxDistance: numb
 	profile.CombPoints += points
 	feedBuilding(player, profile)
 
-	notify(player, `Entregue: +{honey} mel, +{points} pts de favo`, "ok")
+	notify(
+		player,
+		`Entregue: +{honey} mel, +{points} pts de favo`
+			.. (if clanBonus > 0 then ` (colônia +{clanBonus})` else ""),
+		"ok"
+	)
 	ProgressionService.AddXP(player, honey * Config.Progression.XP.HoneyDelivered)
 	QuestService.Add(player, "Mel", honey)
 	HiveService.CollectStored(player, true)

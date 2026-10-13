@@ -16,12 +16,14 @@ local Log = require(Shared.Util.Log)
 local Levels = require(Shared.Levels)
 local Remotes = require(Shared.Remotes)
 
+local ClanService = require(script.Parent.ClanService)
 local CosmeticService = require(script.Parent.CosmeticService)
 local HiveService = require(script.Parent.HiveService)
 local InventoryService = require(script.Parent.InventoryService)
 local Notifier = require(script.Parent.Parent.Lib.Notifier)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local QuestService = require(script.Parent.QuestService)
+local RoyalService = require(script.Parent.RoyalService)
 local UpgradeService = require(script.Parent.UpgradeService)
 
 local StateService = {}
@@ -75,6 +77,9 @@ function StateService.Build(player: Player)
 		HiveHoney = math.floor(profile.HiveHoney),
 		HiveStorage = HiveService.StorageCapacity(profile),
 		Specialty = UpgradeService.SpecialtySummary(player),
+		Royal = RoyalService.Summary(player),
+		Clan = ClanService.Summary(player),
+		DailyStreak = profile.DailyStreak,
 	}
 end
 

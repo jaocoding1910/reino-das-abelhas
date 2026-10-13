@@ -11,9 +11,18 @@
 | Salto 8 | Missões, mel passivo, especialidades, modelos 3D próprios, voo com inclinação e arrancada, painel com abas, animações, partículas de ambiente, sons configuráveis | ✅ código pronto |
 | Salto 9 | Parede de favos brilhante (moldura dourada, cera, vidro em construção), fachada com arco, estandartes vermelhos com coroa, lanternas, pisca-pisca, caixotes de cera, abelhas operárias voando, noite roxa com lua grande e flores acesas | ✅ código pronto |
 | Salto 10 | Louva-a-deus (bote com aviso), abelhinhas dentro das células, mel escorrendo, janelas/varandas/raízes nas árvores-colmeia, trilha dourada até o objetivo (G) | ✅ código pronto |
-| F | Sons escolhidos (IDs), clãs, mais modelos | ⏳ próximo |
+| Salto 11 | Rainha Abelha com pedidos especiais, recompensa diária (7 dias), colônias (clãs) com bônus e sem fogo amigo, praça central com fonte de mel e ranking (servidor + global), 8 sons próprios | ✅ código pronto |
+| F | Mais modelos, eventos, loja | ⏳ próximo |
 
 "Código pronto" = passou na verificação de tipos e nos testes de lógica, mas ainda precisa do teste no Studio abaixo.
+
+## Roteiro de teste — Salto 11
+
+1. **Recompensa diária:** ~6 s depois de entrar aparece o calendário de 7 dias com "HOJE" e "Receber +50 mel". No Studio sem publicar aparece toda vez (o perfil não é salvo).
+2. **Praça do centro:** voe até o meio das colmeias: praça redonda, fonte jorrando mel e o painel "🏆 Mais mel · este servidor". Do outro lado: "🌍 Recordes" (só funciona publicado; no Studio mostra o aviso).
+3. **Rainha:** siga o 👑 até a Colmeia Real. Na frente do salão: trono dourado, tapete vermelho e a Rainha Melissa (abelha grande com coroa e capa). Aperte E em "Falar com a Rainha" → "Aceitar pedido". Aparece a linha "👑 Rainha: … (0/X)" embaixo da missão. Cumpra, volte e "Receber recompensa". A trilha dourada leva até ela quando o pedido fica pronto.
+4. **Colônias:** tecla **3** → digite um nome → "Fundar · 100 mel". Com 2 jogadores: o segundo vê a colônia na lista → "Entrar". Os dois ganham "+10% de mel" nas entregas, aparece "[Nome] Jogador" em cima da abelha e na zona de disputa um não consegue atacar o outro.
+5. **Sons:** siga `docs/SONS.md` para enviar e colar os IDs.
 
 ## Roteiro de teste — Salto 10
 

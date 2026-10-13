@@ -323,6 +323,69 @@ Config.Art = {
 	},
 }
 
+-- Rainha Abelha (Colmeia Real): pedidos especiais com recompensa maior -------
+Config.Royal = {
+	TalkDistance = 60, -- precisa estar perto dela para aceitar/entregar
+	Cooldown = 10 * 60, -- segundos entre um pedido entregue e o próximo
+	LevelScale = 0.08, -- +8% de meta e recompensa por nível acima do 1
+	Requests = {
+		{
+			Kind = "CombRaro",
+			Text = "Traga favos raros para o tesouro real",
+			Goal = 2,
+			Honey = 400,
+			XP = 260,
+		},
+		{
+			Kind = "CombMedio",
+			Text = "Favos médios do bosque para os salões",
+			Goal = 6,
+			Honey = 260,
+			XP = 160,
+		},
+		{
+			Kind = "Nectar",
+			Text = "Néctar fresco para o banquete da corte",
+			Goal = 60,
+			Honey = 220,
+			XP = 130,
+		},
+		{
+			Kind = "Mel",
+			Text = "Encha os potes: entregue mel na sua colmeia",
+			Goal = 300,
+			Honey = 320,
+			XP = 190,
+		},
+		{ Kind = "Comb", Text = "Favos de cera para reformar o palácio", Goal = 15, Honey = 240, XP = 140 },
+	},
+}
+
+-- Recompensa diária: entre todo dia para aumentar a sequência (7 dias e repete).
+Config.Daily = {
+	UtcOffsetHours = -3, -- o "dia" vira à meia-noite de Brasília
+	Honey = { 50, 75, 100, 150, 200, 300, 500 },
+	XPPerDay = 25,
+}
+
+-- Colônias (clãs): grupos com nome. Mesma colônia não se ataca, e com outro
+-- membro online cada entrega rende mais mel.
+Config.Clan = {
+	CreateCost = 100,
+	NameMin = 3,
+	NameMax = 16,
+	MaxMembers = 8,
+	HoneyBonus = 0.10, -- +10% de mel na entrega com outro membro no servidor
+}
+
+-- Ranking na praça do centro.
+Config.Leaderboard = {
+	Size = 10,
+	Refresh = 5, -- segundos (ranking deste servidor)
+	GlobalRefresh = 90, -- segundos (recordes de todos os servidores; precisa publicar)
+	StoreName = "RankingMel_v1",
+}
+
 -- Sons: cole aqui IDs de áudio da Loja do Criador (ex.: "rbxassetid://123").
 -- Vazio = sem som (o jogo funciona normalmente).
 Config.Sounds = {

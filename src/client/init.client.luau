@@ -15,9 +15,10 @@ Loader.Run("Cliente", script.Controllers, {
 	"FlightController", -- A: voo suave, subida e descida
 	"CameraController", -- A: primeira pessoa confortável, patas discretas
 	"InteractionController", -- A: segurar para coletar, entregar, construir
+	"AudioController", -- sons (antes dos painéis, que tocam sons)
+	"SocialController", -- Rainha, colônias e recompensa diária
 	"HUDController", -- A–E: painéis da interface, relógio e loja de melhorias
 	"VisualController", -- favos girando, asas batendo, partículas
 	"WorkerBeeController", -- abelhas operárias voando (só visual)
 	"GuideController", -- trilha dourada até o objetivo (tecla G)
-	"AudioController", -- E: asas, ambiente, alertas
 })

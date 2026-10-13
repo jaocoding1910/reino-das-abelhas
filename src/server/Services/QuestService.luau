@@ -50,28 +50,44 @@ function QuestService.Advance(profile: Types.Profile)
 	end
 end
 
+-- Pedido da Rainha: avança junto com as missões (mesmos tipos de evento).
+local function addRoyal(player: Player, profile: Types.Profile, kind: string, amount: number): boolean
+	local royal = profile.Royal
+	if royal.Kind ~= kind or royal.Progress >= royal.Goal then
+		return false
+	end
+	royal.Progress = math.min(royal.Goal, royal.Progress + amount)
+	if royal.Progress >= royal.Goal then
+		Notifier.Notify(player, "👑 Pedido da Rainha pronto! Volte à Colmeia Real para receber.", "ok")
+	end
+	return true
+end
+
 function QuestService.Add(player: Player, kind: string, amount: number)
 	if amount <= 0 or not PlayerDataService.IsLoaded(player) then
 		return
 	end
 	local profile = PlayerDataService.Get(player)
+	local changed = addRoyal(player, profile, kind, amount)
 	local quest = QuestService.Current(profile)
-	if quest.Kind ~= kind then
-		return
+	if quest.Kind == kind then
+		changed = true
+		profile.QuestProgress = math.min(quest.Goal, profile.QuestProgress + amount)
+		if profile.QuestProgress >= quest.Goal then
+			profile.Honey += quest.Honey
+			profile.HoneyEarned += quest.Honey
+			QuestService.Advance(profile)
+			Notifier.Notify(
+				player,
+				`Missão concluída: {quest.Text}! +{quest.Honey} mel · +{quest.XP} XP`,
+				"ok"
+			)
+			ProgressionService.AddXP(player, quest.XP)
+		end
 	end
-	profile.QuestProgress = math.min(quest.Goal, profile.QuestProgress + amount)
-	if profile.QuestProgress >= quest.Goal then
-		profile.Honey += quest.Honey
-		profile.HoneyEarned += quest.Honey
-		QuestService.Advance(profile)
-		Notifier.Notify(
-			player,
-			`Missão concluída: {quest.Text}! +{quest.Honey} mel · +{quest.XP} XP`,
-			"ok"
-		)
-		ProgressionService.AddXP(player, quest.XP)
+	if changed then
+		Notifier.Changed(player)
 	end
-	Notifier.Changed(player)
 end
 
 function QuestService.Summary(player: Player)

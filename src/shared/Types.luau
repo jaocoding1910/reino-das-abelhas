@@ -34,13 +34,32 @@ export type Profile = {
 	Title: string,
 	ColonyName: string,
 	Cells: { Cell },
-	-- Reservado para clãs (ainda não implementado).
+	-- Antigo campo reservado (não usado; a colônia agora é "Clan").
 	ClanId: string?,
+	Clan: string, -- nome da colônia ("" = nenhuma)
+	LastDailyDay: number, -- último dia em que recebeu a recompensa diária
+	DailyStreak: number,
+	Royal: RoyalQuest, -- pedido atual da Rainha (Kind "" = nenhum)
+	RoyalNextAt: number, -- os.time() a partir do qual pode pedir de novo
+	RoyalCompleted: number,
+}
+
+export type RoyalQuest = {
+	Kind: string,
+	Text: string,
+	Goal: number,
+	Progress: number,
+	Honey: number,
+	XP: number,
 }
 
 local Types = {}
 
-Types.PROFILE_VERSION = 1
+function Types.EmptyRoyal(): RoyalQuest
+	return { Kind = "", Text = "", Goal = 0, Progress = 0, Honey = 0, XP = 0 }
+end
+
+Types.PROFILE_VERSION = 2
 
 function Types.NewProfile(): Profile
 	return {
@@ -61,6 +80,12 @@ function Types.NewProfile(): Profile
 		ColonyName = "Minha Colônia",
 		Cells = {},
 		ClanId = nil,
+		Clan = "",
+		LastDailyDay = 0,
+		DailyStreak = 0,
+		Royal = Types.EmptyRoyal(),
+		RoyalNextAt = 0,
+		RoyalCompleted = 0,
 	}
 end
 
