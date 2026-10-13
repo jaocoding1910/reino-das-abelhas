@@ -52,8 +52,11 @@ local function rootOf(player: Player): BasePart?
 end
 
 function HealthService.MaxHealth(player: Player): number
-	local level = PlayerDataService.Get(player).Upgrades.Resistencia or 0
-	return Config.Health.Max + level * Config.Upgrades.Resistencia.BonusPerLevel
+	local profile = PlayerDataService.Get(player)
+	local level = profile.Upgrades.Resistencia or 0
+	local base = Config.Health.Max + level * Config.Upgrades.Resistencia.BonusPerLevel
+	local info = if profile.Specialty then Config.Specialties[profile.Specialty] else nil
+	return math.floor(base * (if info then info.HealthMultiplier else 1))
 end
 
 function HealthService.Get(player: Player): number

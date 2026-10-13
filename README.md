@@ -2,10 +2,10 @@
 
 Jogo para Roblox em Luau. O código é editado no **VS Code** e sincronizado com o **Roblox Studio** pelo **Rojo**.
 
-> **Estado atual:** jogo completo para teste: voo, mapa com árvores-colmeia, flores gigantes, bosque e Colmeia Real; três raridades de favo; colmeia que cresce; melhorias e acessórios; dia e noite; aranhas; vida, derrota e carga perdida; combate na zona de disputa; nível/XP; salvamento. Veja `docs/ROADMAP.md` (roteiro de teste) e `docs/MODELOS_3D.md` (deixar com cara das imagens de referência).
+> **Estado atual:** jogo completo para teste, agora com voo inclinando nas curvas, arrancada, missões em sequência, mel fabricado pela colmeia, especialidades, painel com abas, animações de coleta/nível, pólen e vaga-lumes, e um pacote de modelos 3D próprios (`modelos3d/`). Inclui: voo, mapa com árvores-colmeia, flores gigantes, bosque e Colmeia Real; três raridades de favo; colmeia que cresce; melhorias e acessórios; dia e noite; aranhas; vida, derrota e carga perdida; combate na zona de disputa; nível/XP; salvamento. Veja `docs/ROADMAP.md` (roteiro de teste) e `docs/MODELOS_3D.md` (deixar com cara das imagens de referência).
 
-**Controles (PC):** WASD voa · Espaço sobe · Ctrl/Q desce · segure E para coletar/entregar/construir · clique ataca (zona de disputa) · 1 Coletar · 2 Sua colmeia (ou U) · 3 Clã · Esc solta o mouse.
-**Celular:** joystick + botões Subir/Descer/Atacar · toque nos avisos e na barra de ações.
+**Controles (PC):** WASD voa · Espaço sobe · Ctrl/Q desce · **Shift arranca** (gasta fôlego) · segure E para coletar/entregar/construir · clique ataca (zona de disputa) · 1 Coletar · 2 Sua colmeia (ou U) · 3 Clã · Esc solta o mouse.
+**Celular:** joystick + botões Subir/Descer/Arrancar/Atacar · toque nos avisos e na barra de ações.
 
 ---
 
@@ -19,8 +19,10 @@ reino-das-abelhas/
 ├── stylua.toml               ← regras do formatador
 ├── .vscode/                  ← extensões recomendadas, configurações e tarefas
 ├── assets/                   ← modelos .rbxm exportados do Studio (vira ReplicatedStorage.Assets)
+├── modelos3d/                ← PacoteAbelhas.glb (importar no Studio) + gerador em Python
 ├── docs/
 │   ├── ARQUITETURA.md        ← como o código conversa e as regras de segurança
+│   ├── MODELOS_3D.md         ← importar o pacote de modelos 3D
 │   └── ROADMAP.md            ← etapas A–E e o que falta
 └── src/
     ├── shared/               → ReplicatedStorage.Shared   (servidor e cliente leem)
@@ -36,7 +38,7 @@ reino-das-abelhas/
     └── client/               → StarterPlayer.StarterPlayerScripts.Client
         ├── init.client.luau  ← bootstrap do cliente
         ├── Controllers/      ← entrada, voo, câmera, interação, HUD, áudio
-        └── UI/               ← Theme (cores douradas, fontes)
+        └── UI/               ← Theme (cores douradas, fontes) e Widgets (hexágonos, barras)
 ```
 
 **Regra dos nomes de arquivo (Rojo):**

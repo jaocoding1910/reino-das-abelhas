@@ -1,38 +1,60 @@
-# Trocando peças por modelos 3D
+# Modelos 3D
 
-Hoje tudo no mapa é montado por código com peças simples. Para chegar perto das imagens de referência, o jogo já está pronto para **usar modelos 3D no lugar das peças**, sem mexer em código.
+O jogo funciona sem nenhum modelo: tudo é montado por código com peças simples. Com modelos 3D ele passa a usar formas arredondadas de verdade (abelha fofinha, flores com pétalas, cogumelos, árvores, cristais). Você não precisa mexer em código.
 
-## Nomes que o jogo reconhece
+## Caminho rápido: o pacote pronto (`modelos3d/PacoteAbelhas.glb`)
 
-| Arquivo em `assets/` | Substitui |
+O projeto já traz um pacote com 6 modelos feitos para o jogo, gerados por código (`modelos3d/gerador/`). Veja como ficam em `modelos3d/preview.png` e `modelos3d/abelha.png`.
+
+| Modelo dentro do pacote | Substitui |
 |---|---|
-| `Abelha.rbxm` | corpo da abelha de todos os jogadores |
-| `Flor.rbxm` | flores comuns |
-| `Girassol.rbxm` | girassóis |
-| `Arvore.rbxm` | árvores do bosque |
-| `Cogumelo.rbxm` | cogumelos |
-| `Cristal.rbxm` | cristais roxos |
+| `Abelha` | corpo da abelha de todos os jogadores (asas batem sozinhas) |
+| `Flor` | flores comuns (cor das pétalas muda de flor para flor) |
+| `Girassol` | girassóis |
+| `Arvore` | árvores do bosque |
+| `Cogumelo` | cogumelos (as pintas brilham à noite) |
+| `Cristal` | cristais roxos |
 
-Sem o arquivo, o jogo continua usando as peças. Pode trocar um de cada vez.
+### Importar (uma vez só, no Studio)
 
-## Passo a passo (no Studio)
+1. Abra o lugar com o `rojo serve` rodando e conecte o plugin do Rojo.
+2. **Arquivo → Importar 3D** (em inglês: *File → Import 3D*).
+3. Escolha `C:\Projetos Lua\reino-das-abelhas\modelos3d\PacoteAbelhas.glb`.
+4. Na janela do importador, deixe tudo no padrão e clique em **Importar**. Aparece um Model **PacoteAbelhas** no Workspace com os 6 modelos dentro.
+5. Clique com o botão direito em **PacoteAbelhas** → **Salvar em arquivo** (*Save to File*) → salve como
+   `C:\Projetos Lua\reino-das-abelhas\assets\PacoteAbelhas.rbxm`
+6. Apague o PacoteAbelhas do Workspace (agora ele vem da pasta `assets`).
+7. Aperte **Play**.
 
-1. Abra a **Caixa de ferramentas** (Toolbox) → aba **Loja do Criador** → **Modelos**.
-2. Busque, por exemplo: `cartoon bee`, `stylized flower`, `low poly tree`, `mushroom`.
-3. Prefira modelos com selo de criador verificado e muitos votos positivos.
-4. Clique no modelo para inserir no Workspace.
-5. **Abra o modelo no Explorador e apague qualquer Script dentro dele.** O jogo também remove scripts automaticamente, mas é bom conferir.
-6. Renomeie o **Model** para o nome da tabela (ex.: `Flor`).
-7. Clique com o botão direito no modelo → **Salvar em arquivo** → salve em
-   `C:\Projetos Lua\reino-das-abelhas\assets\Flor.rbxm`
-8. Apague o modelo do Workspace (ele agora vem da pasta `assets`).
-9. Com o `rojo serve` rodando, aperte Play.
+**Não renomeie as peças de dentro** (`Corpo_1`, `Petala_3`…): o jogo usa a parte antes do "_" para pintar cada peça com as cores de `Config.Art.Palette`. Quer outra cor? Mude a paleta no `Config.luau`; não precisa importar de novo.
 
-O jogo ajusta o **tamanho sozinho**: flores ficam com altura de flor gigante, a abelha fica com ~6 studs de comprimento, e assim por diante.
+### Se algo ficar estranho
 
-## Dicas
+- **A abelha voa de costas ou de lado:** em `Config.luau`, troque `Config.Art.BeeYawDegrees` de `0` para `180` (ou `90` / `-90`).
+- **As asas não batem:** confira se as peças das asas continuam com nome `AsaE_…` e `AsaD_…`.
+- **Modelos pretos ou cinza:** normal antes do Play. O jogo pinta as peças ao montar o mapa.
+- **Tudo igual a antes:** o arquivo precisa estar em `assets/` e o Rojo precisa estar conectado. No Explorer, confira se existe `ReplicatedStorage → Assets → PacoteAbelhas`.
 
-- **Abelha:** a frente do modelo precisa apontar para a frente (eixo -Z do Roblox). Se a abelha voar de lado, gire o modelo no Studio antes de salvar.
-- **Desempenho:** modelos muito detalhados pesam no celular. Prefira "low poly".
-- **Licença:** modelos da Loja do Criador podem ser usados em experiências do Roblox. Se for publicar e monetizar, confira a página do modelo.
-- **Feito por você:** modelos feitos no Blender entram pelo **Importador 3D** do Studio (Arquivo → Importar 3D) e seguem o mesmo passo 6 em diante.
+### Mudar as formas
+
+Os modelos são gerados por `modelos3d/gerador/modelos.py` (Python + numpy):
+
+```powershell
+cd "C:\Projetos Lua\reino-das-abelhas\modelos3d\gerador"
+pip install numpy
+python modelos.py ..\PacoteAbelhas.glb
+```
+
+Depois, importe de novo (passos 2 a 6).
+
+## Caminho alternativo: modelos da Loja do Criador
+
+Você também pode trocar um modelo de cada vez por um da Toolbox. O jogo procura pelo NOME do Model em qualquer lugar dentro de `assets/`.
+
+1. **Caixa de ferramentas** (Toolbox) → **Loja do Criador** → **Modelos**. Busque, por exemplo, `cartoon bee`, `stylized flower`, `low poly tree`.
+2. Prefira criadores verificados e modelos "low poly" (mais leves no celular).
+3. Insira no Workspace e **apague qualquer Script dentro dele** (o jogo também remove scripts sozinho).
+4. Renomeie o Model para o nome da tabela (ex.: `Flor`).
+5. Botão direito → **Salvar em arquivo** → `assets\Flor.rbxm`. Apague do Workspace.
+
+Modelos de terceiros não seguem a regra `Papel_n`, então mantêm as cores originais. O tamanho é ajustado sozinho. **Licença:** confira a página do modelo antes de publicar e monetizar.

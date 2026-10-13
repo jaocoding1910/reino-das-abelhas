@@ -1,19 +1,15 @@
 --[[
-	FlightController (cliente) — Etapa A
+	FlightController (cliente)
 
-	Voo suave da abelha.
+	Voo da abelha com sensação de jogo:
+	- Velocidade suave (aceleração), subir/descer, teto de altitude.
+	- Inclinação do corpo nas curvas (bank) e para a frente ao acelerar.
+	- Arrancada (Shift / botão "Arrancar") que gasta fôlego e recupera parada.
+	- A carga, as melhorias, a especialidade e a teia mudam a velocidade:
+	  o servidor define o atributo "SpeedMultiplier" no Player.
 
-	Como funciona:
-	- O Humanoid fica em PlatformStand (sem andar/pular/cair).
-	- LinearVelocity controla a velocidade do HumanoidRootPart.
-	- AlignOrientation vira a abelha para onde a câmera olha.
-	- A velocidade alvo combina a direção dos controles (horizontal)
-	  com Subir/Descer (vertical), e a velocidade atual se aproxima dela
-	  aos poucos (Config.Flight.Acceleration) para não dar trancos.
-	- A carga pesada reduz a velocidade: o servidor define o atributo
-	  "SpeedMultiplier" no Player e este controlador obedece.
-
-	Etapa D: o servidor passará a conferir velocidades impossíveis.
+	Outros controladores leem FlightController.State (velocidade, inclinação,
+	fôlego) para câmera, som e interface.
 ]]
 
 local Players = game:GetService("Players")
@@ -28,6 +24,13 @@ local InputController = require(script.Parent.InputController)
 
 local FlightController = {}
 
+FlightController.State = {
+	SpeedFraction = 0, -- 0 parado · 1 velocidade base · >1 arrancada
+	Bank = 0, -- graus de inclinação lateral atual
+	Stamina = Config.Flight.StaminaMax,
+	Sprinting = false,
+}
+
 local player = Players.LocalPlayer
 local connection: RBXScriptConnection? = nil
 
@@ -36,6 +39,20 @@ local function stop()
 		connection:Disconnect()
 		connection = nil
 	end
+	FlightController.State.SpeedFraction = 0
+	FlightController.State.Bank = 0
+end
+
+local function yawOf(vector: Vector3): number
+	return math.atan2(-vector.X, -vector.Z)
+end
+
+local function angleDelta(a: number, b: number): number
+	local d = (b - a) % (2 * math.pi)
+	if d > math.pi then
+		d -= 2 * math.pi
+	end
+	return d
 end
 
 local function setup(character: Model)
@@ -73,38 +90,74 @@ local function setup(character: Model)
 	orientation.Parent = root
 
 	local current = Vector3.zero
+	local bank = 0
+	local pitch = 0
+	local lastYaw: number? = nil
+	local lastSprintTime = 0
+	local state = FlightController.State
+	state.Stamina = Config.Flight.StaminaMax
 
 	connection = RunService.Heartbeat:Connect(function(dt)
 		if not root.Parent or humanoid.Health <= 0 then
 			stop()
 			return
 		end
+		local flight = Config.Flight
+		local now = os.clock()
 
+		-- Velocidade alvo (servidor manda o multiplicador).
 		local multiplier = player:GetAttribute("SpeedMultiplier")
-		local speed = Config.Flight.BaseSpeed * (if typeof(multiplier) == "number" then multiplier else 1)
+		local speed = flight.BaseSpeed * (if typeof(multiplier) == "number" then multiplier else 1)
+		local moving = humanoid.MoveDirection.Magnitude > 0.1
+
+		-- Arrancada com fôlego.
+		local sprinting = InputController.IsSprinting() and moving and state.Stamina > 0
+		if sprinting then
+			speed *= flight.SprintMultiplier
+			state.Stamina = math.max(0, state.Stamina - flight.StaminaDrainPerSecond * dt)
+			lastSprintTime = now
+		elseif now - lastSprintTime > flight.StaminaRegenDelay then
+			state.Stamina = math.min(flight.StaminaMax, state.Stamina + flight.StaminaRegenPerSecond * dt)
+		end
+		state.Sprinting = sprinting
 
 		local horizontal = humanoid.MoveDirection * speed
-		local vertical = InputController.GetVertical() * Config.Flight.VerticalSpeed
+		local vertical = InputController.GetVertical() * flight.VerticalSpeed
 		local target = Vector3.new(horizontal.X, vertical, horizontal.Z)
-
-		-- Teto de altitude: não deixa subir além do limite.
-		if root.Position.Y >= Config.Flight.MaxAltitude and target.Y > 0 then
+		if root.Position.Y >= flight.MaxAltitude and target.Y > 0 then
 			target = Vector3.new(target.X, 0, target.Z)
 		end
 
-		local alpha = math.clamp(dt * Config.Flight.Acceleration, 0, 1)
+		local alpha = math.clamp(dt * flight.Acceleration, 0, 1)
 		current = current:Lerp(target, alpha)
 		velocity.VectorVelocity = current
+		state.SpeedFraction = current.Magnitude / flight.BaseSpeed
 
-		-- Vira o corpo para a direção horizontal da câmera.
+		-- Direção da câmera e quanto ela girou neste quadro (para inclinar).
 		local camera = workspace.CurrentCamera
-		if camera then
-			local look = camera.CFrame.LookVector
-			local flat = Vector3.new(look.X, 0, look.Z)
-			if flat.Magnitude > 0.01 then
-				orientation.CFrame = CFrame.lookAt(Vector3.zero, flat.Unit)
-			end
+		local look = camera.CFrame.LookVector
+		local flat = Vector3.new(look.X, 0, look.Z)
+		if flat.Magnitude > 0.01 then
+			flat = flat.Unit
+			local yaw = yawOf(flat)
+			local yawRate = if lastYaw then angleDelta(lastYaw, yaw) / math.max(dt, 1e-3) else 0
+			lastYaw = yaw
+
+			-- Inclinação: curva da câmera + deslize lateral.
+			local right = camera.CFrame.RightVector
+			local lateral = current:Dot(Vector3.new(right.X, 0, right.Z)) / flight.BaseSpeed
+			local bankTarget = math.clamp(yawRate * 9 - lateral * 14, -flight.BankDegrees, flight.BankDegrees)
+			bank += (bankTarget - bank) * math.clamp(dt * 5, 0, 1)
+
+			-- Para a frente ao acelerar; nariz para cima/baixo ao subir/descer.
+			local forward = current:Dot(flat) / flight.BaseSpeed
+			local pitchTarget = math.clamp(-forward * 10 + current.Y / flight.VerticalSpeed * 12, -18, 18)
+			pitch += (pitchTarget - pitch) * math.clamp(dt * 4, 0, 1)
+
+			orientation.CFrame = CFrame.lookAt(Vector3.zero, flat)
+				* CFrame.Angles(math.rad(pitch), 0, math.rad(bank))
 		end
+		state.Bank = bank
 	end)
 
 	humanoid.Died:Connect(stop)

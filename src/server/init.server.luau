@@ -20,6 +20,7 @@ Loader.Run("Servidor", script.Services, {
 	"RegionService", -- em que região cada abelha está
 	"InventoryService", -- carga transportada x recursos depositados
 	"ProgressionService", -- XP e nível
+	"QuestService", -- missões em sequência
 	"ResourceService", -- flores, favos, raridades, regeneração
 	"HiveService", -- colmeias, entrega e construção de células
 	"DropService", -- carga perdida no chão

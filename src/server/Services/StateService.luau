@@ -21,6 +21,7 @@ local HiveService = require(script.Parent.HiveService)
 local InventoryService = require(script.Parent.InventoryService)
 local Notifier = require(script.Parent.Parent.Lib.Notifier)
 local PlayerDataService = require(script.Parent.PlayerDataService)
+local QuestService = require(script.Parent.QuestService)
 local UpgradeService = require(script.Parent.UpgradeService)
 
 local StateService = {}
@@ -69,6 +70,10 @@ function StateService.Build(player: Player)
 		XPInLevel = xpInLevel,
 		XPNext = xpNext,
 		Loaded = PlayerDataService.IsLoaded(player),
+		Quest = QuestService.Summary(player),
+		HiveHoney = math.floor(profile.HiveHoney),
+		HiveStorage = HiveService.StorageCapacity(profile),
+		Specialty = UpgradeService.SpecialtySummary(player),
 	}
 end
 

@@ -3,7 +3,6 @@
 	"servePort": 34872,
 	"tree": {
 		"$className": "DataModel",
-
 		"ReplicatedStorage": {
 			"Shared": {
 				"$path": "src/shared"
@@ -12,13 +11,11 @@
 				"$path": "assets"
 			}
 		},
-
 		"ServerScriptService": {
 			"Server": {
 				"$path": "src/server"
 			}
 		},
-
 		"StarterPlayer": {
 			"$properties": {
 				"CameraMode": "LockFirstPerson",
@@ -33,11 +30,26 @@
 				}
 			}
 		},
-
+		"Workspace": {
+			"Terrain": {
+				"$properties": {
+					"Decoration": true
+				}
+			}
+		},
 		"Lighting": {
 			"$properties": {
 				"ClockTime": 14,
 				"Brightness": 2
+			}
+		},
+		"TextChatService": {
+			"ChatWindowConfiguration": {
+				"$className": "ChatWindowConfiguration",
+				"$properties": {
+					"HorizontalAlignment": "Right",
+					"VerticalAlignment": "Bottom"
+				}
 			}
 		}
 	}

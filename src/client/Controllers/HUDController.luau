@@ -2,13 +2,17 @@
 	HUDController (cliente)
 
 	Interface inspirada nas imagens de referência:
-	- Topo esquerdo: selo hexagonal de nível, título e barra de XP; missão.
+	- Topo esquerdo: selo hexagonal de nível, título e barra de XP; missão atual
+	  com barra de progresso e recompensa; dica do que fazer agora.
 	- Topo centro: dia/noite e objetivo de perigo.
-	- Topo direito: Mel (+ abre a colmeia), Favos carregados, Néctar, região.
+	- Topo direito: Mel (conta subindo + pulso), Favos/carga, Néctar, região.
 	- Esquerda embaixo: minimapa com bússola, colmeia e Colmeia Real.
-	- Centro embaixo: vida e barra de ações 1 Coletar · 2 Construir · 3 Clã.
-	- Painel "Sua colmeia": entregar, expandir, melhorias e acessórios.
-	- Mira, avisos, tela de derrota e marcadores no mundo.
+	- Centro embaixo: vida, fôlego da arrancada e barra de ações
+	  1 Coletar · 2 Colmeia · 3 Clã.
+	- Painel "Sua colmeia" com abas (Colmeia · Abelha · Visual), deslizando
+	  da direita.
+	- Faixas animadas: "Subiu de nível!" e "Missão concluída!".
+	- Mira, avisos, flash de dano, tela de derrota e marcadores no mundo.
 
 	O HUD só MOSTRA e PEDE. Todos os números e decisões vêm do servidor.
 ]]
@@ -31,6 +35,7 @@ local Remotes = require(Shared.Remotes)
 
 local Theme = require(script.Parent.Parent.UI.Theme)
 local W = require(script.Parent.Parent.UI.Widgets)
+local FlightController = require(script.Parent.FlightController)
 
 local HUDController = {}
 
@@ -42,6 +47,16 @@ local refs: { [string]: any } = {}
 local GREEN = Color3.fromRGB(80, 200, 120)
 local ORANGE = Color3.fromRGB(255, 150, 60)
 local PURPLE = Color3.fromRGB(170, 90, 255)
+local DARK_BUTTON = Color3.fromRGB(60, 50, 38)
+local STAMINA = Color3.fromRGB(90, 200, 255)
+
+-- O chat novo do Roblox fica no canto de cima à esquerda e ignora
+-- ChatWindowConfiguration.HorizontalAlignment; por isso o selo de nível e a
+-- missão começam abaixo dele.
+local LEFT_TOP = 140
+
+local PANEL_OPEN = UDim2.new(1, -12, 0.5, 20)
+local PANEL_CLOSED = UDim2.new(1, 400, 0.5, 20)
 
 local function formatNumber(n: number): string
 	-- 4360 → "4.360"
@@ -53,14 +68,40 @@ local function formatNumber(n: number): string
 	return formatted
 end
 
+local function tween(instance: Instance, seconds: number, goal: { [string]: any }, style: Enum.EasingStyle?)
+	local t = TweenService:Create(
+		instance,
+		TweenInfo.new(seconds, style or Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		goal
+	)
+	t:Play()
+	return t
+end
+
+-- Pulso: cresce e volta (usa um UIScale dentro do objeto).
+local function pulse(gui: GuiObject, amount: number?)
+	local scale = gui:FindFirstChild("Pulso") :: UIScale?
+	if not scale then
+		local created = Instance.new("UIScale")
+		created.Name = "Pulso"
+		created.Parent = gui
+		scale = created
+	end
+	local s = scale :: UIScale
+	s.Scale = 1 + (amount or 0.12)
+	tween(s, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
+end
+
 -- Construção --------------------------------------------------------------------
 
 local function buildTopLeft(gui: ScreenGui)
 	local badge, level = W.HexBadge("SeloNivel", 78, "1", gui)
-	badge.Position = UDim2.fromOffset(12, 6)
+	badge.Position = UDim2.fromOffset(12, LEFT_TOP + 6)
 	refs.Level = level
+	refs.LevelBadge = badge
 
-	local header = W.Panel("Titulo", UDim2.fromOffset(250, 52), UDim2.fromOffset(84, 14), Vector2.zero, gui)
+	local header =
+		W.Panel("Titulo", UDim2.fromOffset(250, 52), UDim2.fromOffset(84, LEFT_TOP + 14), Vector2.zero, gui)
 	refs.Title =
 		W.Text("Nome", "ABELHA INICIANTE", UDim2.new(1, -20, 0, 20), UDim2.fromOffset(10, 5), header, {
 			TextColor3 = Theme.Colors.Gold,
@@ -73,15 +114,44 @@ local function buildTopLeft(gui: ScreenGui)
 		ZIndex = 2,
 	})
 
-	local mission = W.Panel("Missao", UDim2.fromOffset(322, 58), UDim2.fromOffset(12, 92), Vector2.zero, gui)
+	-- Missão (vem do QuestService).
+	local mission =
+		W.Panel("Missao", UDim2.fromOffset(322, 78), UDim2.fromOffset(12, LEFT_TOP + 92), Vector2.zero, gui)
+	refs.MissionPanel = mission
 	local icon = W.Hex("Icone", 30, Theme.Colors.Gold, mission)
-	icon.Position = UDim2.fromOffset(10, 14)
-	refs.Mission = W.Text("Texto", "", UDim2.new(1, -60, 0, 22), UDim2.fromOffset(48, 6), mission, {
+	icon.Position = UDim2.fromOffset(10, 10)
+	refs.MissionNumber = W.Text("Numero", "1", UDim2.fromOffset(26, 18), UDim2.fromOffset(0, 6), icon, {
+		Size = UDim2.fromScale(1, 0.6),
+		Position = UDim2.fromScale(0, 0.2),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextColor3 = Theme.Colors.Panel,
+		ZIndex = 2,
+	})
+	W.Text("Rotulo", "MISSÃO", UDim2.new(1, -60, 0, 14), UDim2.fromOffset(48, 6), mission, {
+		TextColor3 = Theme.Colors.Gold,
+	})
+	refs.Mission = W.Text("Texto", "", UDim2.new(1, -60, 0, 20), UDim2.fromOffset(48, 22), mission, {
 		TextWrapped = true,
 	})
-	refs.MissionCount = W.Text("Contagem", "", UDim2.new(1, -60, 0, 18), UDim2.fromOffset(48, 32), mission, {
+	refs.MissionBar =
+		W.Bar("Progresso", UDim2.new(1, -150, 0, 14), UDim2.fromOffset(48, 50), Theme.Colors.Gold, mission)
+	refs.MissionCount =
+		W.Text("Contagem", "", UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), refs.MissionBar, {
+			TextXAlignment = Enum.TextXAlignment.Center,
+			TextStrokeTransparency = 0.5,
+			ZIndex = 2,
+		})
+	refs.MissionReward = W.Text("Premio", "", UDim2.fromOffset(92, 16), UDim2.new(1, -98, 0, 49), mission, {
+		TextXAlignment = Enum.TextXAlignment.Right,
+		TextColor3 = Theme.Colors.Gold,
 		Font = Theme.FontRegular,
-		TextColor3 = Theme.Colors.TextMuted,
+	})
+
+	-- Dica de contexto (sem painel, discreta).
+	refs.Hint = W.Text("Dica", "", UDim2.fromOffset(322, 18), UDim2.fromOffset(16, LEFT_TOP + 176), gui, {
+		Font = Theme.FontRegular,
+		TextColor3 = Theme.Colors.Text,
+		TextStrokeTransparency = 0.4,
 	})
 end
 
@@ -112,6 +182,7 @@ local function buildTopRight(gui: ScreenGui)
 	)
 	honeyText.TextColor3 = Theme.Colors.Gold
 	honeyText.Size = UDim2.new(1, -90, 0.62, 0)
+	refs.HoneyChip = honey
 	refs.Honey = honeyText
 	refs.HoneyPlus = W.Button("Mais", "+", UDim2.fromOffset(30, 30), UDim2.new(1, -38, 0.5, -15), honey)
 
@@ -123,10 +194,11 @@ local function buildTopRight(gui: ScreenGui)
 		Theme.Colors.Gold,
 		gui
 	)
+	refs.CombsChip = combs
 	refs.Combs = combsText
 	refs.CarryBar = W.Bar("Carga", UDim2.new(1, -54, 0, 4), UDim2.new(0, 44, 1, -8), Theme.Colors.Gold, combs)
 
-	local _, nectarText = W.Chip(
+	local nectar, nectarText = W.Chip(
 		"Nectar",
 		UDim2.fromOffset(230, 40),
 		x + UDim2.fromOffset(0, 112),
@@ -134,6 +206,7 @@ local function buildTopRight(gui: ScreenGui)
 		Color3.fromRGB(255, 220, 90),
 		gui
 	)
+	refs.NectarChip = nectar
 	refs.Nectar = nectarText
 
 	local region, regionText, regionIcon = W.Chip(
@@ -159,6 +232,7 @@ local function buildMinimap(gui: ScreenGui)
 	map.Position = position
 	map.BackgroundColor3 = Color3.fromRGB(40, 70, 40)
 	map.BackgroundTransparency = 0.2
+	map.ClipsDescendants = true
 	W.Corner(map, size)
 	W.Stroke(map, Theme.Colors.Gold, 3)
 	map.Parent = gui
@@ -184,18 +258,47 @@ local function buildMinimap(gui: ScreenGui)
 		ring("Seguro", Config.Regions.SafeRadius, GREEN),
 	}
 
-	local function marker(name: string, text: string, color: Color3): TextLabel
-		return W.Text(name, text, UDim2.fromOffset(18, 18), UDim2.fromScale(0.5, 0.5), map, {
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			TextXAlignment = Enum.TextXAlignment.Center,
-			TextColor3 = color,
-			ZIndex = 3,
-		})
-	end
-	refs.MapHive = marker("Colmeia", "⬢", Theme.Colors.Gold)
-	refs.MapRoyal = marker("Real", "👑", Theme.Colors.Gold)
-	refs.MapArrow = marker("Voce", "▲", ORANGE)
-	refs.MapArrow.ZIndex = 4
+	-- Sua colmeia: hexágono de verdade (o caractere ⬢ virava um quadradinho).
+	local hive = W.Hex("Colmeia", 16, Theme.Colors.Gold, map)
+	hive.AnchorPoint = Vector2.new(0.5, 0.5)
+	hive.ZIndex = 3
+	refs.MapHive = hive
+
+	refs.MapRoyal = W.Text("Real", "👑", UDim2.fromOffset(18, 18), UDim2.fromScale(0.5, 0.5), map, {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		ZIndex = 3,
+	})
+
+	-- Você: bolinha laranja com "bico" apontando para onde a câmera olha.
+	local me = Instance.new("Frame")
+	me.Name = "Voce"
+	me.AnchorPoint = Vector2.new(0.5, 0.5)
+	me.Position = UDim2.fromScale(0.5, 0.5)
+	me.Size = UDim2.fromOffset(20, 20)
+	me.BackgroundTransparency = 1
+	me.ZIndex = 4
+	me.Parent = map
+	local dot = Instance.new("Frame")
+	dot.AnchorPoint = Vector2.new(0.5, 0.5)
+	dot.Position = UDim2.fromScale(0.5, 0.6)
+	dot.Size = UDim2.fromOffset(11, 11)
+	dot.BackgroundColor3 = ORANGE
+	dot.BorderSizePixel = 0
+	dot.ZIndex = 5
+	W.Corner(dot, 6)
+	W.Stroke(dot, Color3.new(1, 1, 1), 1.5)
+	dot.Parent = me
+	local nose = Instance.new("Frame")
+	nose.AnchorPoint = Vector2.new(0.5, 0.5)
+	nose.Position = UDim2.fromScale(0.5, 0.22)
+	nose.Size = UDim2.fromOffset(7, 7)
+	nose.Rotation = 45
+	nose.BackgroundColor3 = ORANGE
+	nose.BorderSizePixel = 0
+	nose.ZIndex = 5
+	nose.Parent = me
+	refs.MapArrow = me
 
 	local letters = {
 		{ "N", UDim2.new(0.5, 0, 0, 10) },
@@ -207,7 +310,7 @@ local function buildMinimap(gui: ScreenGui)
 		W.Text(entry[1], entry[1], UDim2.fromOffset(16, 16), entry[2], map, {
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			TextXAlignment = Enum.TextXAlignment.Center,
-			ZIndex = 4,
+			ZIndex = 6,
 		})
 	end
 
@@ -226,8 +329,8 @@ local function buildMinimap(gui: ScreenGui)
 end
 
 local ACTIONS = {
-	{ Key = "1", Name = "Coletar", Icon = "✿" },
-	{ Key = "2", Name = "Construir", Icon = "⚒" },
+	{ Key = "1", Name = "Coletar", Icon = "🌼" },
+	{ Key = "2", Name = "Colmeia", Icon = "🍯" },
 	{ Key = "3", Name = "Clã", Icon = "👥" },
 }
 
@@ -262,6 +365,12 @@ local function buildBottomCenter(gui: ScreenGui)
 				TextXAlignment = Enum.TextXAlignment.Center,
 			})
 		end
+		slot.MouseEnter:Connect(function()
+			tween(hex, 0.15, { Position = UDim2.fromOffset(9, -6) })
+		end)
+		slot.MouseLeave:Connect(function()
+			tween(hex, 0.15, { Position = UDim2.fromOffset(9, 0) })
+		end)
 		refs.ActionButtons[i] = slot
 	end
 
@@ -280,6 +389,29 @@ local function buildBottomCenter(gui: ScreenGui)
 		Visible = false,
 	})
 
+	-- Fôlego da arrancada: só aparece quando está sendo usado/recuperado.
+	local stamina = Instance.new("CanvasGroup")
+	stamina.Name = "Folego"
+	stamina.AnchorPoint = Vector2.new(0.5, 1)
+	stamina.Position = UDim2.new(0.5, 0, 1, -156)
+	stamina.Size = UDim2.fromOffset(220, 22)
+	stamina.BackgroundTransparency = 1
+	stamina.GroupTransparency = 1
+	stamina.Parent = gui
+	W.Text(
+		"Rotulo",
+		if isTouch then "Fôlego" else "Fôlego  [Shift]",
+		UDim2.fromOffset(110, 12),
+		UDim2.fromOffset(0, 0),
+		stamina,
+		{
+			Font = Theme.FontRegular,
+			TextStrokeTransparency = 0.4,
+		}
+	)
+	refs.StaminaBar = W.Bar("Barra", UDim2.new(1, 0, 0, 7), UDim2.fromOffset(0, 14), STAMINA, stamina)
+	refs.Stamina = stamina
+
 	local rare =
 		W.Panel("FavoRaro", UDim2.fromOffset(200, 44), UDim2.new(1, -12, 0.62, 0), Vector2.new(1, 0), gui)
 	local rareIcon = W.Hex("Icone", 28, PURPLE, rare)
@@ -289,14 +421,142 @@ local function buildBottomCenter(gui: ScreenGui)
 	rare.Visible = false
 end
 
-local function buildHivePanel(gui: ScreenGui)
-	local panel = W.Panel(
-		"SuaColmeia",
-		UDim2.fromOffset(340, 430),
-		UDim2.new(1, -12, 0.5, 20),
-		Vector2.new(1, 0.5),
-		gui
+-- Painel da colmeia com abas --------------------------------------------------------
+
+local TABS = { "Colmeia", "Abelha", "Visual" }
+
+local function sectionLabel(text: string, y: number, parent: Instance): TextLabel
+	return W.Text("Secao", text, UDim2.new(1, -28, 0, 18), UDim2.fromOffset(14, y), parent, {
+		TextColor3 = Theme.Colors.TextMuted,
+	})
+end
+
+local function buildHiveTab(page: Frame)
+	refs.ColonyLine = W.Text("Colonia", "", UDim2.new(1, -28, 0, 20), UDim2.fromOffset(14, 0), page, {
+		TextColor3 = Theme.Colors.Gold,
+	})
+
+	refs.CellsText = W.Text("Celulas", "", UDim2.new(1, -28, 0, 18), UDim2.fromOffset(14, 28), page)
+	refs.CellsBar =
+		W.Bar("BarraCelulas", UDim2.new(1, -28, 0, 10), UDim2.fromOffset(14, 50), Theme.Colors.Gold, page)
+
+	refs.StoredText = W.Text("Estoque", "", UDim2.new(1, -28, 0, 18), UDim2.fromOffset(14, 72), page)
+	refs.StoredBar = W.Bar("BarraEstoque", UDim2.new(1, -28, 0, 10), UDim2.fromOffset(14, 94), ORANGE, page)
+	refs.CollectButton =
+		W.Button("ColetarMel", "Recolher mel", UDim2.new(1, -28, 0, 42), UDim2.fromOffset(14, 112), page)
+
+	refs.DeliverButton =
+		W.Button("Entregar", "Entregar favos", UDim2.new(1, -28, 0, 42), UDim2.fromOffset(14, 164), page)
+	refs.ExpandButton = W.Button(
+		"Expandir",
+		"Expandir",
+		UDim2.new(1, -28, 0, 42),
+		UDim2.fromOffset(14, 216),
+		page,
+		DARK_BUTTON
 	)
+	refs.NextTitle = W.Text("ProximoTitulo", "", UDim2.new(1, -28, 0, 34), UDim2.fromOffset(14, 268), page, {
+		Font = Theme.FontRegular,
+		TextColor3 = Theme.Colors.TextMuted,
+		TextWrapped = true,
+		TextScaled = false,
+		TextSize = 14,
+		TextYAlignment = Enum.TextYAlignment.Top,
+	})
+end
+
+local UPGRADE_ICONS = { "⚡", "🎒", "❤️" }
+local UPGRADE_COLORS = { Color3.fromRGB(60, 140, 255), Theme.Colors.Gold, Color3.fromRGB(220, 60, 70) }
+
+local function buildBeeTab(page: Frame)
+	sectionLabel("Melhorias", 0, page)
+	refs.UpgradeSlots = {}
+	for i = 1, 3 do
+		local slot = Instance.new("TextButton")
+		slot.Name = `Melhoria{i}`
+		slot.Text = ""
+		slot.BackgroundColor3 = Color3.fromRGB(45, 37, 28)
+		slot.BackgroundTransparency = 0.2
+		slot.AutoButtonColor = true
+		slot.Size = UDim2.fromOffset(104, 128)
+		slot.Position = UDim2.fromOffset(14 + (i - 1) * 112, 22)
+		W.Corner(slot, 10)
+		slot.Parent = page
+		local hex = W.Hex("Hex", 54, UPGRADE_COLORS[i], slot)
+		hex.Position = UDim2.fromOffset(29, 6)
+		W.Text("Simbolo", UPGRADE_ICONS[i], UDim2.fromOffset(46, 30), UDim2.fromOffset(29, 18), slot, {
+			TextXAlignment = Enum.TextXAlignment.Center,
+			ZIndex = 2,
+		})
+		local name = W.Text("Nome", "", UDim2.new(1, -8, 0, 18), UDim2.fromOffset(4, 64), slot, {
+			TextXAlignment = Enum.TextXAlignment.Center,
+		})
+		local pips = {}
+		for p = 1, 5 do
+			local pip = Instance.new("Frame")
+			pip.Size = UDim2.fromOffset(14, 6)
+			pip.Position = UDim2.fromOffset(13 + (p - 1) * 16, 88)
+			pip.BorderSizePixel = 0
+			pip.BackgroundColor3 = Color3.fromRGB(70, 60, 50)
+			W.Corner(pip, 3)
+			pip.Parent = slot
+			pips[p] = pip
+		end
+		local cost = W.Text("Custo", "", UDim2.new(1, -8, 0, 16), UDim2.fromOffset(4, 102), slot, {
+			TextXAlignment = Enum.TextXAlignment.Center,
+			Font = Theme.FontRegular,
+			TextColor3 = Theme.Colors.TextMuted,
+		})
+		refs.UpgradeSlots[i] =
+			{ Button = slot, Name = name, Pips = pips, Cost = cost, Color = UPGRADE_COLORS[i] }
+	end
+
+	sectionLabel("Especialidade", 162, page)
+	refs.SpecialtyCost = W.Text("Custo", "", UDim2.fromOffset(170, 16), UDim2.new(1, -184, 0, 163), page, {
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Font = Theme.FontRegular,
+		TextColor3 = Theme.Colors.TextMuted,
+	})
+	refs.SpecialtyRows = {}
+	for i = 1, 3 do
+		local row = Instance.new("TextButton")
+		row.Name = `Especialidade{i}`
+		row.Text = ""
+		row.AutoButtonColor = true
+		row.BackgroundColor3 = DARK_BUTTON
+		row.Size = UDim2.new(1, -28, 0, 50)
+		row.Position = UDim2.fromOffset(14, 184 + (i - 1) * 56)
+		W.Corner(row, 8)
+		row.Parent = page
+		local title = W.Text("Nome", "", UDim2.new(1, -20, 0, 18), UDim2.fromOffset(10, 5), row)
+		local description = W.Text("Descricao", "", UDim2.new(1, -20, 0, 20), UDim2.fromOffset(10, 25), row, {
+			Font = Theme.FontRegular,
+			TextScaled = false,
+			TextSize = 13,
+			TextWrapped = true,
+			TextColor3 = Theme.Colors.TextMuted,
+		})
+		refs.SpecialtyRows[i] = { Button = row, Title = title, Description = description }
+	end
+end
+
+local function buildVisualTab(page: Frame)
+	sectionLabel("Acessórios (só visual, comprados com mel)", 0, page)
+	refs.CosmeticButtons = {}
+	for i = 1, 3 do
+		refs.CosmeticButtons[i] = W.Button(
+			`Acessorio{i}`,
+			"",
+			UDim2.new(1, -28, 0, 48),
+			UDim2.fromOffset(14, 26 + (i - 1) * 58),
+			page,
+			DARK_BUTTON
+		)
+	end
+end
+
+local function buildHivePanel(gui: ScreenGui)
+	local panel = W.Panel("SuaColmeia", UDim2.fromOffset(372, 470), PANEL_CLOSED, Vector2.new(1, 0.5), gui)
 	panel.Visible = false
 	panel.ZIndex = 5
 	refs.HivePanel = panel
@@ -305,73 +565,32 @@ local function buildHivePanel(gui: ScreenGui)
 	icon.Position = UDim2.fromOffset(14, 12)
 	W.Text("Titulo", "Sua colmeia", UDim2.new(1, -70, 0, 28), UDim2.fromOffset(54, 13), panel)
 
-	refs.DeliverButton =
-		W.Button("Entregar", "Entregar favos", UDim2.new(1, -28, 0, 46), UDim2.fromOffset(14, 54), panel)
-	refs.ExpandButton = W.Button(
-		"Expandir",
-		"Expandir",
-		UDim2.new(1, -28, 0, 46),
-		UDim2.fromOffset(14, 108),
-		panel,
-		Color3.fromRGB(60, 50, 38)
-	)
-
-	W.Text("Melhorar", "Melhorar abelha", UDim2.new(1, -28, 0, 20), UDim2.fromOffset(14, 164), panel, {
-		TextColor3 = Theme.Colors.TextMuted,
-	})
-	local colors = { Color3.fromRGB(60, 140, 255), Theme.Colors.Gold, Color3.fromRGB(220, 60, 70) }
-	local icons = { "»", "⬢", "♥" }
-	refs.UpgradeSlots = {}
-	for i = 1, 3 do
-		local slot = Instance.new("TextButton")
-		slot.Name = `Melhoria{i}`
-		slot.Text = ""
-		slot.BackgroundTransparency = 1
-		slot.Size = UDim2.fromOffset(100, 120)
-		slot.Position = UDim2.fromOffset(14 + (i - 1) * 106, 188)
-		slot.Parent = panel
-		local hex = W.Hex("Hex", 60, colors[i], slot)
-		hex.Position = UDim2.fromOffset(24, 0)
-		W.Text("Simbolo", icons[i], UDim2.fromOffset(52, 40), UDim2.fromOffset(24, 10), slot, {
-			TextXAlignment = Enum.TextXAlignment.Center,
-			ZIndex = 2,
-		})
-		local name = W.Text("Nome", "", UDim2.new(1, 0, 0, 18), UDim2.fromOffset(0, 62), slot, {
-			TextXAlignment = Enum.TextXAlignment.Center,
-		})
-		local pips = {}
-		for p = 1, 5 do
-			local pip = Instance.new("Frame")
-			pip.Size = UDim2.fromOffset(14, 6)
-			pip.Position = UDim2.fromOffset(12 + (p - 1) * 16, 84)
-			pip.BorderSizePixel = 0
-			pip.BackgroundColor3 = Color3.fromRGB(70, 60, 50)
-			W.Corner(pip, 3)
-			pip.Parent = slot
-			pips[p] = pip
-		end
-		local cost = W.Text("Custo", "", UDim2.new(1, 0, 0, 16), UDim2.fromOffset(0, 96), slot, {
-			TextXAlignment = Enum.TextXAlignment.Center,
-			Font = Theme.FontRegular,
-			TextColor3 = Theme.Colors.TextMuted,
-		})
-		refs.UpgradeSlots[i] = { Button = slot, Name = name, Pips = pips, Cost = cost, Color = colors[i] }
-	end
-
-	W.Text("Visual", "Acessórios", UDim2.new(1, -28, 0, 20), UDim2.fromOffset(14, 314), panel, {
-		TextColor3 = Theme.Colors.TextMuted,
-	})
-	refs.CosmeticButtons = {}
-	for i = 1, 3 do
-		refs.CosmeticButtons[i] = W.Button(
-			`Acessorio{i}`,
-			"",
-			UDim2.fromOffset(100, 34),
-			UDim2.fromOffset(14 + (i - 1) * 106, 338),
+	refs.Tabs = {}
+	refs.Pages = {}
+	local tabWidth = (372 - 28 - 2 * 6) / #TABS
+	for i, name in TABS do
+		local tab = W.Button(
+			`Aba{name}`,
+			name,
+			UDim2.fromOffset(tabWidth, 34),
+			UDim2.fromOffset(14 + (i - 1) * (tabWidth + 6), 52),
 			panel,
-			Color3.fromRGB(60, 50, 38)
+			DARK_BUTTON
 		)
+		refs.Tabs[name] = tab
+
+		local page = Instance.new("Frame")
+		page.Name = `Pagina{name}`
+		page.BackgroundTransparency = 1
+		page.Position = UDim2.fromOffset(0, 98)
+		page.Size = UDim2.new(1, 0, 1, -98 - 56)
+		page.Visible = false
+		page.Parent = panel
+		refs.Pages[name] = page
 	end
+	buildHiveTab(refs.Pages.Colmeia)
+	buildBeeTab(refs.Pages.Abelha)
+	buildVisualTab(refs.Pages.Visual)
 
 	-- Modal = true solta o mouse enquanto o painel está aberto (primeira pessoa).
 	local close = W.Button(
@@ -406,6 +625,44 @@ local function buildOverlays(gui: ScreenGui)
 	refs.Toast = toast
 	refs.ToastText = W.Text("Texto", "", UDim2.new(1, -20, 1, -10), UDim2.fromOffset(10, 5), toast, {
 		TextXAlignment = Enum.TextXAlignment.Center,
+	})
+
+	-- Faixa grande: "Subiu de nível!" / "Missão concluída!".
+	local banner =
+		W.Panel("Faixa", UDim2.fromOffset(440, 86), UDim2.new(0.5, 0, 0, -300), Vector2.new(0.5, 0), gui)
+	banner.ZIndex = 8
+	banner.Visible = false
+	local bannerStroke = banner:FindFirstChildOfClass("UIStroke")
+	if bannerStroke then
+		bannerStroke.Color = Theme.Colors.Gold
+		bannerStroke.Thickness = 3
+	end
+	local bannerHex = W.Hex("Icone", 62, Theme.Colors.Gold, banner)
+	bannerHex.Position = UDim2.fromOffset(14, 12)
+	refs.BannerIcon = bannerHex
+	refs.BannerIconText =
+		W.Text("Simbolo", "", UDim2.fromScale(0.7, 0.6), UDim2.fromScale(0.15, 0.2), bannerHex, {
+			TextXAlignment = Enum.TextXAlignment.Center,
+			TextColor3 = Theme.Colors.Panel,
+			ZIndex = 9,
+		})
+	refs.BannerTitle = W.Text("Titulo", "", UDim2.new(1, -100, 0, 34), UDim2.fromOffset(88, 12), banner, {
+		TextColor3 = Theme.Colors.Gold,
+		ZIndex = 9,
+	})
+	refs.BannerText = W.Text("Texto", "", UDim2.new(1, -100, 0, 24), UDim2.fromOffset(88, 50), banner, {
+		Font = Theme.FontRegular,
+		ZIndex = 9,
+	})
+	refs.Banner = banner
+
+	-- "+25" que sobe ao lado do Mel.
+	refs.HoneyGain = W.Text("GanhoMel", "", UDim2.fromOffset(120, 26), UDim2.new(1, -250, 0, 18), gui, {
+		AnchorPoint = Vector2.new(1, 0),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		TextColor3 = Theme.Colors.Gold,
+		TextStrokeTransparency = 0.3,
+		TextTransparency = 1,
 	})
 
 	-- Flash vermelho nas bordas ao levar dano.
@@ -512,21 +769,53 @@ local function build()
 	refs.RoyalMarker.Enabled = true
 end
 
+-- Faixa animada -------------------------------------------------------------------
+
+local bannerToken = 0
+local function showBanner(title: string, text: string, symbol: string, color: Color3)
+	bannerToken += 1
+	local token = bannerToken
+	local banner: Frame = refs.Banner
+	refs.BannerTitle.Text = title
+	refs.BannerTitle.TextColor3 = color
+	refs.BannerText.Text = text
+	refs.BannerIconText.Text = symbol
+	W.SetHexColor(refs.BannerIcon, color)
+	local stroke = banner:FindFirstChildOfClass("UIStroke")
+	if stroke then
+		stroke.Color = color
+	end
+	banner.Position = UDim2.new(0.5, 0, 0, -300)
+	banner.Visible = true
+	tween(banner, 0.45, { Position = UDim2.new(0.5, 0, 0, 140) }, Enum.EasingStyle.Back)
+	pulse(refs.BannerIcon, 0.3)
+	task.delay(2.8, function()
+		if token == bannerToken then
+			tween(banner, 0.35, { Position = UDim2.new(0.5, 0, 0, -300) }).Completed:Connect(function()
+				if token == bannerToken then
+					banner.Visible = false
+				end
+			end)
+		end
+	end)
+end
+
 -- Atualização ---------------------------------------------------------------------
 
-local function missionFor(s): (string, string)
+local function hintFor(s): string
 	if s.Building then
 		local needed = math.ceil((100 - s.Building.Progress) / (100 / Config.Hive.CellCombCost) - 1e-6)
-		return "Leve favos à colmeia",
-			`Construção {math.floor(s.Building.Progress)}% · faltam {needed} pts de favo`
+		return `🔨 Construindo célula {math.floor(s.Building.Progress)}% · faltam {needed} pts de favo`
 	elseif s.CarryWeight >= s.Capacity then
-		return "Carga cheia! Volte à colmeia", "Entregue no pote de mel dourado"
+		return "🎒 Carga cheia! Volte à colmeia e entregue no pote dourado"
+	elseif (s.HiveHoney or 0) >= math.max(10, (s.HiveStorage or 0) * 0.5) then
+		return `🍯 Sua colmeia fez {s.HiveHoney} de mel · aperte 2 para recolher`
 	elseif s.Honey >= s.CellHoneyCost and s.CellsCompleted < s.CellsMax then
-		return "Expanda sua colmeia", `Você tem mel para uma célula ({s.CellHoneyCost})`
+		return `✨ Você tem mel para uma nova célula ({s.CellHoneyCost})`
 	elseif s.CarryWeight > 0 then
-		return "Leve a carga à colmeia", `Carregando {s.CarryWeight}/{s.Capacity}`
+		return `🐝 Carregando {s.CarryWeight}/{s.Capacity} · leve à colmeia`
 	end
-	return "Colete néctar e favos", "Flores no campo · favos médios no bosque"
+	return "🌼 Colete néctar nas flores e favos no campo e no bosque"
 end
 
 local function renderHivePanel()
@@ -534,15 +823,38 @@ local function renderHivePanel()
 	if not s then
 		return
 	end
+
+	-- Aba Colmeia.
+	refs.ColonyLine.Text = `{s.ColonyName or "Sua colônia"} · {s.Title}`
+	refs.CellsText.Text = `Células prontas: {s.CellsCompleted}/{s.CellsMax}`
+	W.SetBar(refs.CellsBar, s.CellsCompleted / math.max(1, s.CellsMax))
+	local stored, storage = s.HiveHoney or 0, s.HiveStorage or 0
+	refs.StoredText.Text = `Mel fabricado na colmeia: {stored}/{storage}`
+	W.SetBar(refs.StoredBar, if storage > 0 then stored / storage else 0)
+	refs.CollectButton.Text = if stored > 0 then `Recolher {stored} de mel` else "Nada para recolher ainda"
+	refs.CollectButton.BackgroundColor3 = if stored > 0 then Theme.Colors.Gold else DARK_BUTTON
+	refs.CollectButton.TextColor3 = if stored > 0 then Theme.Colors.Panel else Theme.Colors.TextMuted
+
+	local hasCargo = s.CarryWeight > 0
+	refs.DeliverButton.Text = if hasCargo
+		then `Entregar carga ({s.CarryWeight})`
+		else "Sem carga para entregar"
+	refs.DeliverButton.BackgroundColor3 = if hasCargo then Theme.Colors.Gold else DARK_BUTTON
+	refs.DeliverButton.TextColor3 = if hasCargo then Theme.Colors.Panel else Theme.Colors.TextMuted
+
 	local canExpand = s.Building == nil and s.CellsCompleted < s.CellsMax
 	local affordable = canExpand and s.Honey >= s.CellHoneyCost
 	refs.ExpandButton.Text = if s.Building
 		then `Construindo {math.floor(s.Building.Progress)}%`
-		elseif canExpand then `Expandir · {s.CellHoneyCost} mel`
+		elseif canExpand then `Nova célula · {s.CellHoneyCost} mel`
 		else "Colmeia completa"
-	refs.ExpandButton.BackgroundColor3 = if affordable then Theme.Colors.Gold else Color3.fromRGB(60, 50, 38)
+	refs.ExpandButton.BackgroundColor3 = if affordable then Theme.Colors.Gold else DARK_BUTTON
 	refs.ExpandButton.TextColor3 = if affordable then Theme.Colors.Panel else Theme.Colors.Text
+	refs.NextTitle.Text = if s.NextTitle
+		then `Próximo título → {s.NextTitle}`
+		else "Você chegou ao título máximo!"
 
+	-- Aba Abelha: melhorias.
 	for i, upgrade in s.Upgrades or {} do
 		local slot = refs.UpgradeSlots[i]
 		if slot then
@@ -557,19 +869,39 @@ local function renderHivePanel()
 		end
 	end
 
+	-- Aba Abelha: especialidade.
+	local specialty = s.Specialty
+	if specialty then
+		refs.SpecialtyCost.Text = if specialty.Current
+			then `trocar custa {specialty.ChangeCost} mel`
+			else "a primeira é grátis!"
+		for i, option in specialty.Options do
+			local row = refs.SpecialtyRows[i]
+			if row then
+				row.Title.Text = if option.Active then `✓ {option.DisplayName}` else option.DisplayName
+				row.Description.Text = option.Description
+				row.Button.BackgroundColor3 = if option.Active then Theme.Colors.Gold else DARK_BUTTON
+				row.Title.TextColor3 = if option.Active then Theme.Colors.Panel else Theme.Colors.Text
+				row.Description.TextColor3 = if option.Active
+					then Color3.fromRGB(70, 50, 20)
+					else Theme.Colors.TextMuted
+			end
+		end
+	end
+
+	-- Aba Visual.
 	for i, cosmetic in s.Cosmetics or {} do
 		local button = refs.CosmeticButtons[i]
 		if button then
-			local short = string.split(cosmetic.DisplayName, " ")[1]
 			if cosmetic.Owned then
-				button.Text = if cosmetic.Equipped then `✓ {short}` else short
-				button.BackgroundColor3 = if cosmetic.Equipped
-					then Theme.Colors.Gold
-					else Color3.fromRGB(60, 50, 38)
+				button.Text = if cosmetic.Equipped
+					then `✓ {cosmetic.DisplayName} · usando`
+					else `{cosmetic.DisplayName} · vestir`
+				button.BackgroundColor3 = if cosmetic.Equipped then Theme.Colors.Gold else DARK_BUTTON
 				button.TextColor3 = if cosmetic.Equipped then Theme.Colors.Panel else Theme.Colors.Text
 			else
-				button.Text = `{short} · {cosmetic.Price}`
-				button.BackgroundColor3 = Color3.fromRGB(60, 50, 38)
+				button.Text = `{cosmetic.DisplayName} · {cosmetic.Price} mel`
+				button.BackgroundColor3 = DARK_BUTTON
 				button.TextColor3 = if s.Honey >= cosmetic.Price
 					then Theme.Colors.Gold
 					else Theme.Colors.TextMuted
@@ -578,31 +910,83 @@ local function renderHivePanel()
 	end
 end
 
+local displayedHoney: number? = nil
+local targetHoney = 0
+local lastLevel: number? = nil
+local lastQuest: any = nil
+
 local function render()
 	local s = state
 	if not s then
 		return
 	end
 
-	refs.Level.Text = tostring(s.Level or 1)
+	-- Subiu de nível?
+	local level = s.Level or 1
+	if lastLevel and level > lastLevel then
+		showBanner("SUBIU DE NÍVEL!", `Agora você é nível {level}`, tostring(level), Theme.Colors.Gold)
+		pulse(refs.LevelBadge, 0.3)
+	end
+	lastLevel = level
+
+	-- Missão concluída?
+	local quest = s.Quest
+	if lastQuest and quest and quest.Number > lastQuest.Number then
+		showBanner(
+			"MISSÃO CONCLUÍDA!",
+			`{lastQuest.Text} · +{lastQuest.Honey} mel · +{lastQuest.XP} XP`,
+			"✓",
+			GREEN
+		)
+	end
+	lastQuest = quest
+
+	refs.Level.Text = tostring(level)
 	refs.Title.Text = string.upper(s.Title)
 	if s.XPNext and s.XPNext > 0 then
 		W.SetBar(refs.XPBar, s.XPInLevel / s.XPNext)
 		refs.XPText.Text = `{formatNumber(s.XPInLevel)} / {formatNumber(s.XPNext)}`
 	end
 
-	local missionTitle, missionDetail = missionFor(s)
-	refs.Mission.Text = missionTitle
-	refs.MissionCount.Text = missionDetail
+	if quest then
+		refs.MissionNumber.Text = tostring(quest.Number)
+		refs.Mission.Text = quest.Text
+		W.SetBar(refs.MissionBar, quest.Progress / math.max(1, quest.Goal))
+		refs.MissionCount.Text = `{quest.Progress}/{quest.Goal}`
+		refs.MissionReward.Text = `+{quest.Honey} mel`
+	end
+	refs.Hint.Text = hintFor(s)
 
-	refs.Honey.Text = `Mel   {formatNumber(s.Honey)}`
+	-- Mel com contador subindo.
+	if displayedHoney == nil then
+		displayedHoney = s.Honey
+	elseif s.Honey > targetHoney then
+		local gain = s.Honey - targetHoney
+		pulse(refs.HoneyChip)
+		local label: TextLabel = refs.HoneyGain
+		label.Text = `+{formatNumber(gain)}`
+		label.Position = UDim2.new(1, -250, 0, 18)
+		label.TextTransparency = 0
+		tween(label, 1.2, { Position = UDim2.new(1, -250, 0, -4), TextTransparency = 1 })
+	end
+	targetHoney = s.Honey
+
 	local combCount = 0
 	for _, amount in s.Combs do
 		combCount += amount
 	end
+	local previousCombs = refs.LastCombCount
+	if previousCombs and combCount > previousCombs then
+		pulse(refs.CombsChip)
+	end
+	refs.LastCombCount = combCount
 	refs.Combs.Text = `Favos {combCount}  ·  carga {s.CarryWeight}/{s.Capacity}`
 	local fraction = if s.Capacity > 0 then s.CarryWeight / s.Capacity else 0
 	W.SetBar(refs.CarryBar, fraction, if fraction >= 1 then Theme.Colors.Danger else Theme.Colors.Gold)
+	if refs.LastNectar and s.Nectar > refs.LastNectar then
+		pulse(refs.NectarChip)
+	end
+	refs.LastNectar = s.Nectar
 	refs.Nectar.Text = `Néctar {s.Nectar}`
 
 	local rare = s.Combs.Raro or 0
@@ -626,11 +1010,15 @@ local function renderRegion()
 		refs.Region.Visible = false
 		return
 	end
+	local changed = refs.Region.Visible and refs.RegionText.Text ~= info.Label
 	refs.Region.Visible = true
 	refs.RegionText.Text = info.Label
 	local color = if info.Protected then GREEN elseif info.PvP then Theme.Colors.Danger else ORANGE
 	refs.RegionText.TextColor3 = color
 	W.SetHexColor(refs.RegionIcon, color)
+	if changed then
+		pulse(refs.Region, 0.15)
+	end
 end
 
 local function renderHealth()
@@ -669,7 +1057,25 @@ local function renderClock()
 	refs.ObjectiveText.Text = objective or ""
 end
 
-local function renderMinimap()
+local function renderFrame(dt: number)
+	-- Contador do mel.
+	if displayedHoney then
+		local current = displayedHoney :: number
+		local diff = targetHoney - current
+		current = if math.abs(diff) < 0.5 then targetHoney else current + diff * math.clamp(dt * 7, 0, 1)
+		displayedHoney = current
+		refs.Honey.Text = `Mel   {formatNumber(current)}`
+	end
+
+	-- Fôlego.
+	local flight = FlightController.State
+	local fraction = flight.Stamina / Config.Flight.StaminaMax
+	W.SetBar(refs.StaminaBar, fraction, if fraction < 0.25 then Theme.Colors.Danger else STAMINA)
+	local show = flight.Sprinting or fraction < 0.999
+	local group: CanvasGroup = refs.Stamina
+	group.GroupTransparency += ((if show then 0 else 1) - group.GroupTransparency) * math.clamp(dt * 6, 0, 1)
+
+	-- Minimapa.
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
 	if not root then
@@ -681,8 +1087,8 @@ local function renderMinimap()
 
 	local function place(gui: GuiObject, world: Vector3)
 		local offset = Vector2.new(world.X - me.X, world.Z - me.Z) / scale
-		if offset.Magnitude > radius - 10 then
-			offset = offset.Unit * (radius - 10) -- fica na borda apontando a direção
+		if offset.Magnitude > radius - 12 then
+			offset = offset.Unit * (radius - 12) -- fica na borda apontando a direção
 		end
 		gui.Position = UDim2.new(0.5, offset.X, 0.5, offset.Y)
 	end
@@ -691,7 +1097,7 @@ local function renderMinimap()
 		local distance = math.floor((me - state.HivePosition).Magnitude)
 		place(refs.MapHive, state.HivePosition)
 		refs.HiveDistance.Text = `Sua colmeia · {distance} m`
-		refs.HiveMarkerLabel.Text = `⬢ Sua colmeia · {distance} m`
+		refs.HiveMarkerLabel.Text = `🏠 Sua colmeia · {distance} m`
 	end
 	place(refs.MapRoyal, refs.RoyalAnchor.Position)
 	refs.RoyalMarkerLabel.Text =
@@ -723,6 +1129,10 @@ local function showToast(message: string, kind: string)
 		end)
 		return
 	end
+	-- A faixa "Missão concluída!" já mostra isso.
+	if string.find(message, "^Missão concluída") then
+		return
+	end
 	toastToken += 1
 	local token = toastToken
 	local toast: Frame = refs.Toast
@@ -733,11 +1143,13 @@ local function showToast(message: string, kind: string)
 		else Theme.Colors.Text
 	toast.Visible = true
 	toast.BackgroundTransparency = Theme.Colors.PanelTransparency
+	refs.ToastText.TextTransparency = 0
+	pulse(toast, 0.06)
 	task.delay(2.6, function()
 		if token == toastToken then
-			local tween = TweenService:Create(toast, TweenInfo.new(0.3), { BackgroundTransparency = 1 })
-			tween:Play()
-			tween.Completed:Wait()
+			tween(refs.ToastText, 0.3, { TextTransparency = 1 })
+			local t = tween(toast, 0.3, { BackgroundTransparency = 1 })
+			t.Completed:Wait()
 			if token == toastToken then
 				toast.Visible = false
 			end
@@ -747,13 +1159,42 @@ end
 
 local function flashDamage()
 	refs.HurtStroke.Transparency = 0.2
-	TweenService:Create(refs.HurtStroke, TweenInfo.new(0.6), { Transparency = 1 }):Play()
+	tween(refs.HurtStroke, 0.6, { Transparency = 1 })
 end
 
-local function setHivePanel(open: boolean)
-	refs.HivePanel.Visible = open
+local currentTab = "Colmeia"
+local function selectTab(name: string)
+	currentTab = name
+	for tabName, button in refs.Tabs do
+		local active = tabName == name
+		button.BackgroundColor3 = if active then Theme.Colors.Gold else DARK_BUTTON
+		button.TextColor3 = if active then Theme.Colors.Panel else Theme.Colors.Text
+		refs.Pages[tabName].Visible = active
+	end
+end
+
+local panelOpen = false
+local function setHivePanel(open: boolean, tab: string?)
+	if tab then
+		selectTab(tab)
+	end
+	if open == panelOpen then
+		return
+	end
+	panelOpen = open
+	local panel: Frame = refs.HivePanel
 	if open then
 		renderHivePanel()
+		panel.Visible = true
+		panel.Position = PANEL_CLOSED
+		tween(panel, 0.3, { Position = PANEL_OPEN }, Enum.EasingStyle.Back)
+	else
+		local t = tween(panel, 0.2, { Position = PANEL_CLOSED })
+		t.Completed:Connect(function()
+			if not panelOpen then
+				panel.Visible = false
+			end
+		end)
 	end
 end
 
@@ -761,7 +1202,7 @@ local function runAction(index: number)
 	if index == 1 then
 		showToast("Chegue perto de uma flor ou favo e segure E (ou toque no aviso).", "info")
 	elseif index == 2 then
-		setHivePanel(not refs.HivePanel.Visible)
+		setHivePanel(not panelOpen)
 	elseif index == 3 then
 		showToast("Clãs chegam em breve: junte abelhas numa mesma colônia!", "info")
 	end
@@ -780,11 +1221,22 @@ local function tidyCoreGui()
 		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
 	end)
 	-- Chat embaixo à direita, deixando o topo esquerdo para o selo de nível.
-	pcall(function()
-		local window = TextChatService:FindFirstChildOfClass("ChatWindowConfiguration")
-		if window then
-			window.HorizontalAlignment = Enum.HorizontalAlignment.Right
-			window.VerticalAlignment = Enum.VerticalAlignment.Bottom
+	-- A configuração da janela do chat pode demorar a existir: esperamos por ela.
+	-- (O default.project.json também já configura isso; aqui é o reforço.)
+	task.spawn(function()
+		local window = TextChatService:WaitForChild("ChatWindowConfiguration", 10)
+		if not window then
+			Log.warn("HUDController", "chat: ChatWindowConfiguration não encontrado")
+			return
+		end
+		local ok, err = pcall(function()
+			(window :: any).HorizontalAlignment = Enum.HorizontalAlignment.Right;
+			(window :: any).VerticalAlignment = Enum.VerticalAlignment.Bottom
+		end)
+		if ok then
+			Log.info("HUDController", "chat movido para baixo à direita")
+		else
+			Log.warn("HUDController", `chat não pôde ser movido: {err}`)
 		end
 	end)
 end
@@ -792,6 +1244,7 @@ end
 function HUDController:Init()
 	tidyCoreGui()
 	build()
+	selectTab(currentTab)
 end
 
 function HUDController:Start()
@@ -819,10 +1272,18 @@ function HUDController:Start()
 
 	-- Botões.
 	refs.HoneyPlus.Activated:Connect(function()
-		setHivePanel(true)
+		setHivePanel(true, "Abelha")
 	end)
 	refs.HiveClose.Activated:Connect(function()
 		setHivePanel(false)
+	end)
+	for name, button in refs.Tabs do
+		button.Activated:Connect(function()
+			selectTab(name)
+		end)
+	end
+	refs.CollectButton.Activated:Connect(function()
+		Remotes.Get("RequestHiveAction"):FireServer("ColetarMel")
 	end)
 	refs.DeliverButton.Activated:Connect(function()
 		Remotes.Get("RequestHiveAction"):FireServer("Entregar")
@@ -835,6 +1296,14 @@ function HUDController:Start()
 			local upgrade = state and state.Upgrades and state.Upgrades[i]
 			if upgrade then
 				Remotes.Get("RequestUpgrade"):FireServer(upgrade.Name)
+			end
+		end)
+	end
+	for i, row in refs.SpecialtyRows do
+		row.Button.Activated:Connect(function()
+			local option = state and state.Specialty and state.Specialty.Options[i]
+			if option and not option.Active then
+				Remotes.Get("RequestSpecialty"):FireServer(option.Id)
 			end
 		end)
 	end
@@ -886,7 +1355,7 @@ function HUDController:Start()
 			task.wait(0.5)
 		end
 	end)
-	RunService.RenderStepped:Connect(renderMinimap)
+	RunService.RenderStepped:Connect(renderFrame)
 
 	Log.info("HUDController", "pronto")
 end

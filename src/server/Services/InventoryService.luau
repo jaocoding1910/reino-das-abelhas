@@ -48,9 +48,16 @@ function InventoryService.Weight(player: Player): number
 	return weight
 end
 
+local function specialty(player: Player)
+	local id = PlayerDataService.Get(player).Specialty
+	return if id then Config.Specialties[id] else nil
+end
+
 function InventoryService.Capacity(player: Player): number
 	local level = PlayerDataService.Get(player).Upgrades.Capacidade or 0
-	return Config.Carry.BaseCapacity + level * Config.Upgrades.Capacidade.BonusPerLevel
+	local base = Config.Carry.BaseCapacity + level * Config.Upgrades.Capacidade.BonusPerLevel
+	local info = specialty(player)
+	return math.floor(base * (if info then info.CapacityMultiplier else 1))
 end
 
 function InventoryService.FreeSpace(player: Player): number
@@ -70,6 +77,10 @@ local function updateSpeed(player: Player)
 	penalty = math.min(penalty, Config.Carry.MaxSpeedPenalty)
 	local level = PlayerDataService.Get(player).Upgrades.Velocidade or 0
 	local bonus = 1 + level * Config.Upgrades.Velocidade.BonusPerLevel
+	local info = specialty(player)
+	if info then
+		bonus *= info.SpeedMultiplier
+	end
 	local slow = if (slowUntil[player] or 0) > os.clock() then slowFactor[player] or 1 else 1
 	player:SetAttribute("SpeedMultiplier", bonus * (1 - penalty) * slow)
 	player:SetAttribute("Slowed", slow < 1)

@@ -239,8 +239,16 @@ end
 
 -- Flores ------------------------------------------------------------------
 
--- Peça invisível no topo de um modelo importado, onde fica o néctar.
+-- Néctar de um modelo importado: usa a peça "Miolo" (ou cria uma no topo).
 local function nectarAnchor(model: Model, parent: Instance): BasePart
+	for _, part in model:GetDescendants() do
+		if part:IsA("BasePart") and part:GetAttribute("Papel") == "Miolo" then
+			part:SetAttribute("NectarColor", part.Color)
+			local emitter = sparkles(part, Color3.fromRGB(255, 215, 90), 3, 0.5)
+			emitter.Name = "Polen"
+			return part
+		end
+	end
 	local boxCFrame, boxSize = model:GetBoundingBox()
 	local top = boxCFrame.Position + Vector3.new(0, boxSize.Y / 2 - 1, 0)
 	local anchor =
@@ -255,7 +263,17 @@ end
 -- Girassol: pétalas compridas e miolo escuro enorme.
 local function buildSunflower(parent: Instance, base: Vector3, rng: Random): BasePart
 	local height = rng:NextNumber(45, 75)
-	local imported = AssetLibrary.Place("Girassol", CFrame.new(base), height, parent)
+	local imported = AssetLibrary.Place(
+		"Girassol",
+		CFrame.new(base) * CFrame.Angles(0, rng:NextNumber(0, 6.28), 0),
+		height,
+		parent,
+		{
+			Petala = Color3.fromRGB(255, 200, 30),
+			Miolo = Color3.fromRGB(110, 70, 30),
+			MioloBorda = Color3.fromRGB(150, 100, 40),
+		}
+	)
 	if imported then
 		return nectarAnchor(imported, imported)
 	end
@@ -320,7 +338,14 @@ local function buildFlower(parent: Instance, base: Vector3, rng: Random): BasePa
 		return buildSunflower(parent, base, rng)
 	end
 	local importedHeight = rng:NextNumber(20, 60)
-	local imported = AssetLibrary.Place("Flor", CFrame.new(base), importedHeight, parent)
+	local colors = PETAL_COLORS[rng:NextInteger(1, #PETAL_COLORS)]
+	local imported = AssetLibrary.Place(
+		"Flor",
+		CFrame.new(base) * CFrame.Angles(0, rng:NextNumber(0, 6.28), 0),
+		importedHeight,
+		parent,
+		{ Petala = colors[1], PetalaInterna = colors[2] }
+	)
 	if imported then
 		return nectarAnchor(imported, imported)
 	end
@@ -509,7 +534,11 @@ end
 -- Retorna a posição acima do chapéu.
 local function buildMushroom(parent: Instance, base: Vector3, rng: Random): Vector3
 	local height = rng:NextNumber(8, 22)
-	local imported = AssetLibrary.Place("Cogumelo", CFrame.new(base), height + 4, parent)
+	local isBlue = rng:NextNumber() < 0.5
+	local imported = AssetLibrary.Place("Cogumelo", CFrame.new(base), height + 8, parent, {
+		Chapeu = if isBlue then Color3.fromRGB(80, 120, 230) else Color3.fromRGB(200, 60, 70),
+		NightColor = if isBlue then Color3.fromRGB(120, 220, 255) else Color3.fromRGB(255, 140, 220),
+	})
 	if imported then
 		local boxCFrame, boxSize = imported:GetBoundingBox()
 		local glowAnchor = imported.PrimaryPart or imported:FindFirstChildWhichIsA("BasePart")

@@ -9,12 +9,17 @@ InputController ──┐                            PlayerDataService (DataStor
 FlightController  │   pede ações               WorldService (MapBuilder) · RegionService
 CameraController  ├── Remotes / Prompts ──►    ResourceService · InventoryService · DropService
 VisualController  │   (Upgrade, Cosmetic,      HiveService · UpgradeService · CosmeticService
+AudioController   │    Specialty,              QuestService (missões) · StateService
 HUDController  ◄──┘    HiveAction, Attack)     HealthService · PredatorService (Spider) · CombatService
        ▲                                       ProgressionService · DayNightService · CharacterService
        └──── StateUpdated / Notify / Effect / WorldUpdated ◄── StateService (via Lib/Notifier)
 
 ReplicatedStorage.Shared: Config · Types · Remotes · Regions · Levels · Util
 ```
+
+`FlightController.State` (velocidade, inclinação, fôlego, arrancada) é lido pela câmera, pelo HUD, pelos efeitos e pelo som. Assim o voo é calculado uma vez só.
+
+Os modelos 3D passam por `Lib/AssetLibrary` (servidor): procura em `ReplicatedStorage.Assets`, remove scripts, pinta cada peça pelo papel no nome (`Corpo_1` → `Config.Art.Palette.Corpo`) e prende as asas com dobradiça para o cliente animar.
 
 ## Interações no mundo
 

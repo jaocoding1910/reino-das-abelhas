@@ -21,6 +21,7 @@ local Remotes = require(Shared.Remotes)
 local InventoryService = require(script.Parent.InventoryService)
 local Notifier = require(script.Parent.Parent.Lib.Notifier)
 local PlayerDataService = require(script.Parent.PlayerDataService)
+local QuestService = require(script.Parent.QuestService)
 
 local UpgradeService = {}
 
@@ -79,12 +80,60 @@ local function buy(player: Player, name: unknown)
 	profile.Upgrades[upgradeName] = level + 1
 	Notifier.Notify(player, `{info.DisplayName} nível {level + 1}!`, "ok")
 	InventoryService.Refresh(player)
+	QuestService.Add(player, "Melhoria", 1)
+end
+
+-- Especialidades ---------------------------------------------------------------
+
+function UpgradeService.SpecialtySummary(player: Player)
+	local current = PlayerDataService.Get(player).Specialty
+	local list = {}
+	for _, id in Config.SpecialtyOrder do
+		local info = Config.Specialties[id]
+		table.insert(list, {
+			Id = id,
+			DisplayName = info.DisplayName,
+			Description = info.Description,
+			Active = current == id,
+		})
+	end
+	return {
+		Current = current,
+		ChangeCost = if current then Config.SpecialtyChangeCost else 0,
+		Options = list,
+	}
+end
+
+local function chooseSpecialty(player: Player, id: unknown)
+	local now = os.clock()
+	if now - (lastRequest[player] or 0) < 0.3 then
+		return
+	end
+	lastRequest[player] = now
+	if typeof(id) ~= "string" or Config.Specialties[id] == nil or not PlayerDataService.IsLoaded(player) then
+		return
+	end
+	local profile = PlayerDataService.Get(player)
+	if profile.Specialty == id then
+		return
+	end
+	-- Primeira escolha é grátis; trocar custa mel.
+	local cost = if profile.Specialty then Config.SpecialtyChangeCost else 0
+	if profile.Honey < cost then
+		Notifier.Notify(player, `Trocar de especialidade custa {cost} mel.`, "erro")
+		return
+	end
+	profile.Honey -= cost
+	profile.Specialty = id :: string
+	Notifier.Notify(player, `Agora você é uma abelha {Config.Specialties[id].DisplayName}!`, "ok")
+	InventoryService.Refresh(player)
 end
 
 function UpgradeService:Init() end
 
 function UpgradeService:Start()
 	Remotes.Get("RequestUpgrade").OnServerEvent:Connect(buy)
+	Remotes.Get("RequestSpecialty").OnServerEvent:Connect(chooseSpecialty)
 	Players.PlayerRemoving:Connect(function(player)
 		lastRequest[player] = nil
 	end)

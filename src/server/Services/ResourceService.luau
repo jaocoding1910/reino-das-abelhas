@@ -26,6 +26,7 @@ local Types = require(Shared.Types)
 local Notifier = require(script.Parent.Parent.Lib.Notifier)
 local InventoryService = require(script.Parent.InventoryService)
 local ProgressionService = require(script.Parent.ProgressionService)
+local QuestService = require(script.Parent.QuestService)
 local WorldService = require(script.Parent.WorldService)
 
 local ResourceService = {}
@@ -127,6 +128,7 @@ local function collect(player: Player, entry: Entry)
 		end
 		notify(player, `+{added} néctar`, "ok")
 		ProgressionService.AddXP(player, added * Config.Progression.XP.NectarPerUnit)
+		QuestService.Add(player, "Nectar", added)
 	else
 		local rarity = entry.Rarity :: Types.Rarity
 		if not InventoryService.AddComb(player, rarity) then
@@ -135,6 +137,12 @@ local function collect(player: Player, entry: Entry)
 		end
 		notify(player, `+1 {Config.Rarities[rarity].DisplayName} ({Config.Rarities[rarity].Label})`, "ok")
 		ProgressionService.AddXP(player, Config.Progression.XP.Comb[rarity])
+		QuestService.Add(player, "Comb", 1)
+		if rarity == "Medio" then
+			QuestService.Add(player, "CombMedio", 1)
+		elseif rarity == "Raro" then
+			QuestService.Add(player, "CombRaro", 1)
+		end
 	end
 
 	Remotes.Get("Effect"):FireAllClients("coleta", entry.Anchor.Position, player.UserId)

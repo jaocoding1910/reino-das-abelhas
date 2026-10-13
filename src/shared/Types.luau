@@ -23,6 +23,10 @@ export type Profile = {
 	HoneyEarned: number, -- total já ganho (para títulos)
 	CombPoints: number, -- pontos de favo depositados, ainda não usados
 	XP: number, -- experiência total (o nível é calculado a partir dela)
+	HiveHoney: number, -- mel produzido pelas células, esperando ser recolhido
+	QuestIndex: number,
+	QuestProgress: number,
+	QuestCycle: number,
 	Upgrades: { [string]: number },
 	Specialty: string?,
 	Cosmetics: { string },
@@ -45,6 +49,10 @@ function Types.NewProfile(): Profile
 		HoneyEarned = 0,
 		CombPoints = 0,
 		XP = 0,
+		HiveHoney = 0,
+		QuestIndex = 1,
+		QuestProgress = 0,
+		QuestCycle = 0,
 		Upgrades = { Velocidade = 0, Capacidade = 0, Resistencia = 0 },
 		Specialty = nil,
 		Cosmetics = {},

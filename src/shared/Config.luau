@@ -68,6 +68,18 @@ Config.Flight = {
 	VerticalSpeed = 18,
 	Acceleration = 6,
 	MaxAltitude = 600,
+	-- Arrancada (Shift / botão "Arrancar"): mais rápida, gasta fôlego.
+	SprintMultiplier = 1.5,
+	StaminaMax = 100,
+	StaminaDrainPerSecond = 28,
+	StaminaRegenPerSecond = 18,
+	StaminaRegenDelay = 0.8,
+	-- Sensação: inclinação nas curvas e campo de visão com a velocidade.
+	BankDegrees = 22, -- inclinação máxima do corpo nas curvas
+	CameraRollDegrees = 5, -- inclinação leve da câmera (0 desliga)
+	FieldOfView = 78,
+	FieldOfViewBoost = 14, -- quanto o FOV abre na velocidade máxima
+	ShowLegs = false, -- patinhas na parte de baixo da tela (true liga)
 }
 
 -- Mapa (gerado por código em World/MapBuilder) ---------------------------
@@ -187,10 +199,31 @@ Config.Upgrades = {
 	},
 }
 
+-- Especialidades: escolha grátis na primeira vez; trocar custa mel.
+Config.SpecialtyOrder = { "Veloz", "Transportadora", "Guardia" }
+Config.SpecialtyChangeCost = 100
 Config.Specialties = {
-	Veloz = { SpeedMultiplier = 1.15, CapacityMultiplier = 0.8, HealthMultiplier = 1 },
-	Transportadora = { SpeedMultiplier = 0.9, CapacityMultiplier = 1.35, HealthMultiplier = 1 },
-	Guardia = { SpeedMultiplier = 0.92, CapacityMultiplier = 1, HealthMultiplier = 1.3 },
+	Veloz = {
+		DisplayName = "Veloz",
+		Description = "+15% voo · -20% carga",
+		SpeedMultiplier = 1.15,
+		CapacityMultiplier = 0.8,
+		HealthMultiplier = 1,
+	},
+	Transportadora = {
+		DisplayName = "Transportadora",
+		Description = "+35% carga · -10% voo",
+		SpeedMultiplier = 0.9,
+		CapacityMultiplier = 1.35,
+		HealthMultiplier = 1,
+	},
+	Guardia = {
+		DisplayName = "Guardiã",
+		Description = "+30% vida · -8% voo",
+		SpeedMultiplier = 0.92,
+		CapacityMultiplier = 1,
+		HealthMultiplier = 1.3,
+	},
 }
 
 -- Colmeia -----------------------------------------------------------------
@@ -201,8 +234,10 @@ Config.Hive = {
 	CellCombCost = 10, -- pontos de favo para levar uma célula de 0% a 100%
 	CellHoneyCost = 50, -- mel pago para iniciar a célula
 	CellSide = 3, -- tamanho do lado do hexágono (studs)
-	CellBuildTime = 60, -- Etapa B: tempo de acabamento (favo raro reduz)
-	StoragePerCell = 100, -- Etapa B
+	CellBuildTime = 60, -- reservado: tempo de acabamento (favo raro reduz)
+	-- Produção passiva: cada célula concluída fabrica mel sozinha.
+	HoneyPerCellPerMinute = 2,
+	StoragePerCell = 25, -- mel guardado por célula até você recolher
 }
 
 -- Progressão --------------------------------------------------------------
@@ -212,6 +247,73 @@ Config.Titles = {
 	{ Name = "Construtora", RequiredCells = 12, RequiredHoney = 2000 },
 	{ Name = "Líder", RequiredCells = 24, RequiredHoney = 6000 },
 	{ Name = "Rei da Colmeia", RequiredCells = 37, RequiredHoney = 15000 },
+}
+
+-- Missões em sequência ------------------------------------------------------
+-- Kind: Nectar, Comb, CombMedio, CombRaro, Mel (entregue), Celula, Melhoria.
+-- Ao terminar a lista, as missões a partir de RepeatFrom repetem com metas maiores.
+Config.Quests = {
+	{ Kind = "Nectar", Goal = 15, Text = "Colete néctar nas flores", Honey = 30, XP = 40 },
+	{ Kind = "Comb", Goal = 3, Text = "Pegue favos no campo", Honey = 30, XP = 40 },
+	{ Kind = "Mel", Goal = 60, Text = "Entregue mel na colmeia", Honey = 40, XP = 50 },
+	{ Kind = "Celula", Goal = 1, Text = "Construa uma célula nova", Honey = 60, XP = 80 },
+	{ Kind = "Melhoria", Goal = 1, Text = "Compre uma melhoria", Honey = 50, XP = 60 },
+	{ Kind = "CombMedio", Goal = 2, Text = "Pegue favos médios no bosque", Honey = 80, XP = 100 },
+	{ Kind = "Nectar", Goal = 50, Text = "Colete muito néctar", Honey = 80, XP = 100 },
+	{ Kind = "CombRaro", Goal = 1, Text = "Traga um favo raro", Honey = 150, XP = 200 },
+	{ Kind = "Celula", Goal = 3, Text = "Expanda a colmeia", Honey = 200, XP = 250 },
+	{ Kind = "Mel", Goal = 400, Text = "Encha a colmeia de mel", Honey = 250, XP = 300 },
+}
+Config.QuestRepeatFrom = 6
+Config.QuestRepeatGrowth = 0.5 -- +50% na meta e na recompensa a cada volta
+
+-- Arte: cores dos modelos 3D importados (o jogo recolore cada peça pelo nome).
+-- Uma peça "Corpo_3" usa a entrada "Corpo".
+Config.Art = {
+	BeeYawDegrees = 0, -- se a abelha importada voar de costas, use 180
+	Palette = {
+		-- Abelha
+		Corpo = { Color = Color3.fromRGB(255, 196, 40) },
+		Listra = { Color = Color3.fromRGB(35, 28, 24) },
+		Pelo = { Color = Color3.fromRGB(255, 214, 110), Material = Enum.Material.Fabric },
+		Cabeca = { Color = Color3.fromRGB(35, 28, 24) },
+		OlhoBranco = { Color = Color3.fromRGB(250, 250, 250) },
+		Pupila = { Color = Color3.fromRGB(20, 18, 16) },
+		Brilho = { Color = Color3.fromRGB(255, 255, 255), Material = Enum.Material.Neon },
+		Bochecha = { Color = Color3.fromRGB(255, 140, 160) },
+		Antena = { Color = Color3.fromRGB(35, 28, 24) },
+		Ferrao = { Color = Color3.fromRGB(35, 28, 24) },
+		Pata = { Color = Color3.fromRGB(35, 28, 24) },
+		AsaE = { Color = Color3.fromRGB(225, 240, 255), Material = Enum.Material.Glass, Transparency = 0.45 },
+		AsaD = { Color = Color3.fromRGB(225, 240, 255), Material = Enum.Material.Glass, Transparency = 0.45 },
+		-- Plantas
+		Caule = { Color = Color3.fromRGB(85, 150, 60) },
+		Folha = { Color = Color3.fromRGB(75, 160, 70), Material = Enum.Material.Grass },
+		Petala = { Color = Color3.fromRGB(250, 250, 245) },
+		PetalaInterna = { Color = Color3.fromRGB(255, 240, 200) },
+		Miolo = { Color = Color3.fromRGB(255, 185, 40), Material = Enum.Material.Sand },
+		MioloBorda = { Color = Color3.fromRGB(150, 100, 40) },
+		Pe = { Color = Color3.fromRGB(240, 230, 210) },
+		Chapeu = { Color = Color3.fromRGB(200, 60, 70) },
+		Pinta = { Color = Color3.fromRGB(250, 250, 240) },
+		Tronco = { Color = Color3.fromRGB(105, 75, 50), Material = Enum.Material.Wood },
+		Copa = { Color = Color3.fromRGB(65, 135, 60), Material = Enum.Material.Grass },
+		CopaClara = { Color = Color3.fromRGB(95, 165, 70), Material = Enum.Material.Grass },
+		Cristal = { Color = Color3.fromRGB(160, 90, 255), Material = Enum.Material.Neon, Transparency = 0.1 },
+	},
+}
+
+-- Sons: cole aqui IDs de áudio da Loja do Criador (ex.: "rbxassetid://123").
+-- Vazio = sem som (o jogo funciona normalmente).
+Config.Sounds = {
+	Asas = "", -- zumbido em loop (volume acompanha a velocidade)
+	Coleta = "",
+	Entrega = "",
+	Nivel = "",
+	Dano = "",
+	Clique = "",
+	AmbienteDia = "", -- loop
+	AmbienteNoite = "", -- loop
 }
 
 -- Nível e experiência ------------------------------------------------------

@@ -31,6 +31,7 @@ local Notifier = require(script.Parent.Parent.Lib.Notifier)
 local InventoryService = require(script.Parent.InventoryService)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local ProgressionService = require(script.Parent.ProgressionService)
+local QuestService = require(script.Parent.QuestService)
 local WorldService = require(script.Parent.WorldService)
 
 local HiveService = {}
@@ -229,6 +230,7 @@ local function feedBuilding(player: Player, profile: Types.Profile)
 		cell.Completed = true
 		notify(player, "Célula concluída! Sua colmeia cresceu.", "ok")
 		ProgressionService.AddXP(player, Config.Progression.XP.CellCompleted)
+		QuestService.Add(player, "Celula", 1)
 	end
 end
 
@@ -263,6 +265,8 @@ function HiveService.TryDeliver(player: Player, index: number, maxDistance: numb
 
 	notify(player, `Entregue: +{honey} mel, +{points} pts de favo`, "ok")
 	ProgressionService.AddXP(player, honey * Config.Progression.XP.HoneyDelivered)
+	QuestService.Add(player, "Mel", honey)
+	HiveService.CollectStored(player, true)
 	Remotes.Get("Effect"):FireAllClients("entrega", plot.Data.Delivery.Position, player.UserId)
 	renderPlot(index)
 	Notifier.Changed(player)
@@ -300,6 +304,37 @@ function HiveService.TryBuild(player: Player, index: number, maxDistance: number
 	notify(player, "Nova célula iniciada! Entregue favos para concluir.", "ok")
 	renderPlot(index)
 	Notifier.Changed(player)
+end
+
+-- Produção passiva -------------------------------------------------------------
+
+function HiveService.StorageCapacity(profile: Types.Profile): number
+	return HiveService.CountCompleted(profile) * Config.Hive.StoragePerCell
+end
+
+-- Soma a produção de `seconds` segundos (puro, testável).
+function HiveService.Produce(profile: Types.Profile, seconds: number)
+	local cells = HiveService.CountCompleted(profile)
+	local produced = cells * Config.Hive.HoneyPerCellPerMinute * (seconds / 60)
+	profile.HiveHoney = math.min(HiveService.StorageCapacity(profile), profile.HiveHoney + produced)
+end
+
+-- Recolhe o mel guardado na colmeia. `silent` evita aviso duplicado na entrega.
+function HiveService.CollectStored(player: Player, silent: boolean?): number
+	local profile = PlayerDataService.Get(player)
+	local amount = math.floor(profile.HiveHoney)
+	if amount <= 0 then
+		if not silent then
+			notify(player, "A colmeia ainda não produziu mel. Construa mais células!", "info")
+		end
+		return 0
+	end
+	profile.HiveHoney -= amount
+	profile.Honey += amount
+	profile.HoneyEarned += amount
+	notify(player, `+{amount} mel produzido pela sua colmeia`, "ok")
+	Notifier.Changed(player)
+	return amount
 end
 
 -- Penalidade de derrota por predador: tira pontos de UMA célula inacabada.
@@ -393,6 +428,29 @@ function HiveService:Start()
 			HiveService.TryDeliver(player, index, 40)
 		elseif action == "Expandir" then
 			HiveService.TryBuild(player, index, 70)
+		elseif action == "ColetarMel" then
+			if isNear(player, plots[index].Data.WallOrigin.Position, 90) then
+				HiveService.CollectStored(player)
+			else
+				notify(player, "Volte para perto da sua colmeia para recolher o mel.", "erro")
+			end
+		end
+	end)
+
+	-- Produção passiva de mel a cada 5 segundos.
+	task.spawn(function()
+		while true do
+			task.wait(5)
+			for player in plotOfPlayer do
+				if PlayerDataService.IsLoaded(player) then
+					local profile = PlayerDataService.Get(player)
+					local before = math.floor(profile.HiveHoney)
+					HiveService.Produce(profile, 5)
+					if math.floor(profile.HiveHoney) ~= before then
+						Notifier.Changed(player)
+					end
+				end
+			end
 		end
 	end)
 	Players.PlayerRemoving:Connect(release)

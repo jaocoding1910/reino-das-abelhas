@@ -25,6 +25,12 @@ local InputController = {}
 
 local up = false
 local down = false
+local sprint = false
+
+-- Segurando Shift (ou o botão "Arrancar")?
+function InputController.IsSprinting(): boolean
+	return sprint
+end
 
 -- -1 (descer), 0 (parado) ou 1 (subir).
 function InputController.GetVertical(): number
@@ -60,6 +66,10 @@ function InputController:Init()
 	bindHold("AbelhaDescer", "Descer", UDim2.new(1, -170, 1, -95), function(value)
 		down = value
 	end, Enum.KeyCode.LeftControl, Enum.KeyCode.Q, Enum.KeyCode.ButtonB)
+
+	bindHold("AbelhaArrancar", "Arrancar", UDim2.new(1, -245, 1, -95), function(value)
+		sprint = value
+	end, Enum.KeyCode.LeftShift, Enum.KeyCode.ButtonL3)
 end
 
 local lastAttack = 0

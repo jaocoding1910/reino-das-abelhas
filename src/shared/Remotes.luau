@@ -20,7 +20,8 @@ local FOLDER_NAME = "Remotes"
 local EVENTS = {
 	"RequestUpgrade", -- cliente → servidor: comprar melhoria X
 	"RequestCosmetic", -- cliente → servidor: comprar/equipar acessório X
-	"RequestHiveAction", -- cliente → servidor: "Entregar" ou "Expandir" pelo painel
+	"RequestHiveAction", -- cliente → servidor: "Entregar", "Expandir" ou "ColetarMel" pelo painel
+	"RequestSpecialty", -- cliente → servidor: escolher especialidade X
 	"RequestAttack", -- cliente → servidor: atacar (servidor valida alvo e alcance)
 	"StateUpdated", -- servidor → cliente: inventário, saúde, título
 	"WorldUpdated", -- servidor → todos: dia/noite, avisos
