@@ -1,10 +1,10 @@
 --[[
 	PredatorService (servidor)
 
-	Cria as aranhas nos pés das árvores do bosque e as atualiza a cada
-	quadro. A atividade muda com o ciclo:
-	- dia: Config.Predators.Spider.DayActivityMultiplier (enxergam menos)
-	- noite: Config.Predators.Spider.NightActivityMultiplier (mais perigosas)
+	Cria os predadores do bosque e os atualiza a cada quadro:
+	- Aranhas nos pés das árvores (perseguem).
+	- Louva-a-deus no alto dos cogumelos fora da área protegida (bote).
+	A atividade muda com o ciclo (Day/NightActivityMultiplier de cada um).
 
 	O dano passa SEMPRE pelo HealthService (proteção ao nascer, trava de
 	derrota única e penalidade de predador ficam lá).
@@ -20,12 +20,14 @@ local Log = require(Shared.Util.Log)
 
 local HealthService = require(script.Parent.HealthService)
 local InventoryService = require(script.Parent.InventoryService)
+local Mantis = require(script.Parent.Parent.Predators.Mantis)
 local Spider = require(script.Parent.Parent.Predators.Spider)
 local WorldService = require(script.Parent.WorldService)
 
 local PredatorService = {}
 
-local predators = {}
+type Entry = { Predator: any, Settings: any }
+local predators: { Entry } = {}
 
 local hooks: Spider.Hooks = {
 	IsAlive = HealthService.IsAlive,
@@ -54,20 +56,41 @@ function PredatorService:Start()
 		local base = spots[((i - 1) * 3) % #spots + 1]
 		local outward = Vector3.new(base.X, 0, base.Z).Unit
 		local home = base - outward * 28
-		table.insert(predators, Spider.new(home, folder, hooks))
+		table.insert(
+			predators,
+			{ Predator = Spider.new(home, folder, hooks), Settings = Config.Predators.Spider }
+		)
+	end
+
+	-- Louva-a-deus: só em cogumelos fora do campo protegido (com folga).
+	local perches = {}
+	for _, top in map.MantisSpots do
+		if Vector3.new(top.X, 0, top.Z).Magnitude > Config.Regions.SafeRadius + 30 then
+			table.insert(perches, top - Vector3.new(0, 2.6, 0)) -- o topo vem 3 studs acima do chapéu
+		end
+	end
+	local mantisCount = 0
+	for i = 1, math.min(Config.Predators.LouvaDeus.Count, #perches) do
+		local perch = perches[((i - 1) * 2) % #perches + 1]
+		table.insert(
+			predators,
+			{ Predator = Mantis.new(perch, folder, hooks), Settings = Config.Predators.LouvaDeus }
+		)
+		mantisCount += 1
 	end
 
 	RunService.Heartbeat:Connect(function(dt)
-		local settings = Config.Predators.Spider
-		local activity = if workspace:GetAttribute("IsNight")
-			then settings.NightActivityMultiplier
-			else settings.DayActivityMultiplier
-		for _, predator in predators do
-			predator:Update(dt, activity)
+		local night = workspace:GetAttribute("IsNight") == true
+		for _, entry in predators do
+			local settings = entry.Settings
+			local activity = if night
+				then settings.NightActivityMultiplier
+				else settings.DayActivityMultiplier
+			entry.Predator:Update(dt, activity)
 		end
 	end)
 
-	Log.info("PredatorService", `{#predators} aranhas no bosque`)
+	Log.info("PredatorService", `{#predators - mantisCount} aranhas e {mantisCount} louva-a-deus no bosque`)
 end
 
 return PredatorService

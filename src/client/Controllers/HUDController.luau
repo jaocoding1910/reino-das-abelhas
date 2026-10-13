@@ -220,6 +220,19 @@ local function buildTopRight(gui: ScreenGui)
 	refs.Region = region
 	refs.RegionText = regionText
 	refs.RegionIcon = regionIcon
+
+	-- Ícones dentro dos hexágonos (como na referência).
+	local function iconIn(chip: Frame, emoji: string)
+		local hex = chip:FindFirstChild("Icone")
+		if hex then
+			W.Text("Emoji", emoji, UDim2.fromScale(0.78, 0.6), UDim2.fromScale(0.11, 0.2), hex, {
+				TextXAlignment = Enum.TextXAlignment.Center,
+				ZIndex = 3,
+			})
+		end
+	end
+	iconIn(honey, "🍯")
+	iconIn(nectar, "🌼")
 end
 
 local function buildMinimap(gui: ScreenGui)

@@ -39,12 +39,14 @@ local DAY = {
 	Brightness = 2.4,
 }
 
+-- Noite "mágica" da referência: roxa e clara o bastante para jogar,
+-- com as lanternas, flores e luzinhas fazendo o brilho.
 local NIGHT = {
-	Ambient = Color3.fromRGB(70, 60, 120),
-	OutdoorAmbient = Color3.fromRGB(80, 70, 150),
-	Tint = Color3.fromRGB(190, 180, 255),
-	Atmosphere = Color3.fromRGB(90, 80, 170),
-	Brightness = 1.2,
+	Ambient = Color3.fromRGB(105, 85, 160),
+	OutdoorAmbient = Color3.fromRGB(120, 100, 190),
+	Tint = Color3.fromRGB(205, 190, 255),
+	Atmosphere = Color3.fromRGB(110, 85, 175),
+	Brightness = 1.7,
 }
 
 local cycleStart = 0
@@ -101,15 +103,33 @@ local function apply(factor: number)
 	end
 end
 
+-- Liga/desliga o brilho noturno. Cada peça guarda a própria cor e o material
+-- de dia (atributos DayColor/DayMaterial) para voltar ao normal de manhã.
 local function setNightGlow(isNight: boolean)
 	for _, item in CollectionService:GetTagged(MapBuilder.Tags.NightGlow) do
-		if item:IsA("PointLight") then
+		if item:IsA("PointLight") or item:IsA("SpotLight") or item:IsA("SurfaceLight") then
 			item.Enabled = isNight
 		elseif item:IsA("BasePart") then
+			if item:GetAttribute("DayColor") == nil then
+				item:SetAttribute("DayColor", item.Color)
+				item:SetAttribute("DayMaterial", item.Material.Name)
+			end
 			local nightColor = item:GetAttribute("NightColor")
-			item.Material = if isNight then Enum.Material.Neon else Enum.Material.SmoothPlastic
-			if typeof(nightColor) == "Color3" then
-				item.Color = if isNight then nightColor else Color3.fromRGB(250, 250, 240)
+			local dayColor = item:GetAttribute("DayColor")
+			local dayMaterial = item:GetAttribute("DayMaterial")
+			if isNight then
+				item.Material = Enum.Material.Neon
+				if typeof(nightColor) == "Color3" then
+					item.Color = nightColor
+				end
+			else
+				local ok, material = pcall(function()
+					return (Enum.Material :: any)[dayMaterial]
+				end)
+				item.Material = if ok and material then material else Enum.Material.SmoothPlastic
+				if typeof(dayColor) == "Color3" then
+					item.Color = dayColor
+				end
 			end
 		end
 	end
@@ -127,6 +147,7 @@ function DayNightService:Init()
 end
 
 function DayNightService:Start()
+	setNightGlow(false) -- guarda as cores de dia e apaga as luzes noturnas
 	local accumulator = 0
 	RunService.Heartbeat:Connect(function(dt)
 		accumulator += dt

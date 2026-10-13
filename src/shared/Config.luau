@@ -167,6 +167,22 @@ Config.Predators = {
 		DayActivityMultiplier = 0.6, -- de dia enxerga menos
 		NightActivityMultiplier = 1.6, -- à noite enxerga e corre mais
 	},
+	-- Louva-a-deus: espreita no alto dos cogumelos do bosque e dá o BOTE em linha
+	-- reta. O bote vai até onde você estava no fim do aviso: desvie para escapar!
+	LouvaDeus = {
+		Count = 5,
+		DetectionRange = 55,
+		TerritoryRadius = 50,
+		LungeDistance = 36, -- alcance máximo do bote
+		LungeSpeed = 80, -- studs por segundo durante o bote
+		ReturnSpeed = 20,
+		AttackWindup = 0.9, -- tempo de aviso (braços erguidos, "!" vermelho)
+		StrikeRadius = 7, -- distância da cabeça para acertar no fim do bote
+		AttackDamage = 25,
+		AttackCooldown = 3.5,
+		DayActivityMultiplier = 0.5,
+		NightActivityMultiplier = 1.4,
+	},
 }
 
 -- Melhorias compradas com mel ----------------------------------------------
@@ -233,7 +249,7 @@ Config.Hive = {
 	MaxCells = 37,
 	CellCombCost = 10, -- pontos de favo para levar uma célula de 0% a 100%
 	CellHoneyCost = 50, -- mel pago para iniciar a célula
-	CellSide = 3, -- tamanho do lado do hexágono (studs)
+	CellSide = 4.2, -- tamanho do lado do hexágono (studs); a parede tem ~62 studs
 	CellBuildTime = 60, -- reservado: tempo de acabamento (favo raro reduz)
 	-- Produção passiva: cada célula concluída fabrica mel sozinha.
 	HoneyPerCellPerMinute = 2,
@@ -271,6 +287,10 @@ Config.QuestRepeatGrowth = 0.5 -- +50% na meta e na recompensa a cada volta
 -- Uma peça "Corpo_3" usa a entrada "Corpo".
 Config.Art = {
 	BeeYawDegrees = 0, -- se a abelha importada voar de costas, use 180
+	-- Abelhas operárias (só visual, no cliente): voam entre a colmeia e as flores.
+	WorkerBeesPerHive = 3,
+	WorkerBeesRoyal = 5,
+	WorkerBeeLength = 2.6,
 	Palette = {
 		-- Abelha
 		Corpo = { Color = Color3.fromRGB(255, 196, 40) },

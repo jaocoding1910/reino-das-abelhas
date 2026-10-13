@@ -43,6 +43,7 @@ export type MapData = {
 	Flowers: { BasePart }, -- a parte central (néctar) de cada flor
 	Combs: { Model }, -- favos coletáveis (atributo Rarity)
 	SpiderSpots: { Vector3 }, -- pés das árvores do bosque (teias)
+	MantisSpots: { Vector3 }, -- topo dos cogumelos (poleiro do louva-a-deus)
 	RoyalPosition: Vector3,
 	DefaultSpawn: CFrame,
 }
@@ -201,9 +202,22 @@ local function buildLighting()
 	atmosphere.Decay = Color3.fromRGB(110, 150, 220)
 
 	local bloom = ensure("BloomEffect", Lighting) :: BloomEffect
-	bloom.Intensity = 0.6
-	bloom.Size = 30
-	bloom.Threshold = 1.6
+	bloom.Intensity = 0.85
+	bloom.Size = 36
+	bloom.Threshold = 1.25
+
+	-- Céu: lua grande e muitas estrelas (a noite das imagens de referência).
+	local sky = ensure("Sky", Lighting) :: Sky
+	sky.MoonAngularSize = 24
+	sky.SunAngularSize = 16
+	sky.StarCount = 4000
+
+	-- Fundo levemente desfocado: dá cara de "cena de filme" sem atrapalhar o perto.
+	local depth = ensure("DepthOfFieldEffect", Lighting) :: DepthOfFieldEffect
+	depth.FarIntensity = 0.18
+	depth.FocusDistance = 80
+	depth.InFocusRadius = 90
+	depth.NearIntensity = 0
 
 	local rays = ensure("SunRaysEffect", Lighting) :: SunRaysEffect
 	rays.Intensity = 0.08
@@ -347,6 +361,21 @@ local function buildFlower(parent: Instance, base: Vector3, rng: Random): BasePa
 		{ Petala = colors[1], PetalaInterna = colors[2] }
 	)
 	if imported then
+		-- À noite as pétalas de dentro acendem (flores mágicas da referência).
+		-- (A luz fica numa pétala, não no miolo: o miolo apaga quando é coletado.)
+		local lightHolder: BasePart? = nil
+		for _, part in imported:GetDescendants() do
+			if part:IsA("BasePart") and part:GetAttribute("Papel") == "PetalaInterna" then
+				part:SetAttribute("NightColor", colors[2]:Lerp(Color3.new(1, 1, 1), 0.15))
+				CollectionService:AddTag(part, MapBuilder.Tags.NightGlow)
+				lightHolder = lightHolder or part
+			end
+		end
+		if lightHolder then
+			local glow = light(lightHolder, colors[1], 22, 1.2)
+			glow.Enabled = false
+			CollectionService:AddTag(glow, MapBuilder.Tags.NightGlow)
+		end
 		return nectarAnchor(imported, imported)
 	end
 
@@ -725,15 +754,22 @@ end
 
 -- Decoração das árvores-colmeia -------------------------------------------------
 
-local NAVY = Color3.fromRGB(35, 45, 90)
+local BANNER_RED = Color3.fromRGB(150, 28, 40)
+local DARK_WOOD = Color3.fromRGB(70, 48, 30)
+local WAX = Color3.fromRGB(252, 246, 228)
+local FAIRY_COLORS = {
+	Color3.fromRGB(255, 214, 120),
+	Color3.fromRGB(255, 170, 80),
+	Color3.fromRGB(255, 236, 170),
+}
 
 -- Hexágono desenhado em 2D (3 retângulos girados) para bandeiras.
-local function hexEmblem(parent: GuiObject, color: Color3)
+local function hexEmblem(parent: GuiObject, color: Color3, centerY: number, size: number)
 	for i = 0, 2 do
 		local frame = Instance.new("Frame")
 		frame.AnchorPoint = Vector2.new(0.5, 0.5)
-		frame.Position = UDim2.fromScale(0.5, 0.45)
-		frame.Size = UDim2.fromScale(0.18, 0.18 * math.sqrt(3)) -- lado × lado·√3
+		frame.Position = UDim2.fromScale(0.5, centerY)
+		frame.Size = UDim2.fromScale(size, size * math.sqrt(3)) -- lado × lado·√3
 		frame.SizeConstraint = Enum.SizeConstraint.RelativeXX
 		frame.Rotation = 60 * i
 		frame.BackgroundColor3 = color
@@ -742,55 +778,244 @@ local function hexEmblem(parent: GuiObject, color: Color3)
 	end
 end
 
-local function banner(parent: Instance, cf: CFrame)
-	local cloth = newPart("Bandeira", Vector3.new(8, 18, 0.4), cf, NAVY, parent)
+-- Estandarte vermelho com coroa e favo dourados (como na referência).
+local function banner(parent: Instance, cf: CFrame, width: number, height: number)
+	local cloth = newPart("Estandarte", Vector3.new(width, height, 0.3), cf, BANNER_RED, parent)
 	cloth.Material = Enum.Material.Fabric
 	cloth.CanCollide = false
-	local trim = newPart(
+	local rod = newPart(
 		"Haste",
-		Vector3.new(10, 0.8, 0.8),
-		cf * CFrame.new(0, 9.4, 0),
-		Color3.fromRGB(200, 150, 60),
+		Vector3.new(width + 2, 0.7, 0.7),
+		cf * CFrame.new(0, height / 2 + 0.3, 0),
+		GOLD,
+		parent
+	)
+	rod.CanCollide = false
+	-- Ponta em "V" embaixo: dois triângulos feitos com cunhas.
+	for side = -1, 1, 2 do
+		local tip = Instance.new("WedgePart")
+		tip.Name = "Ponta"
+		tip.Anchored = true
+		tip.CanCollide = false
+		tip.Size = Vector3.new(0.3, height * 0.18, width / 2)
+		tip.CFrame = cf
+			* CFrame.new(side * width / 4, -height / 2 - height * 0.09, 0)
+			* CFrame.Angles(0, math.rad(90 * side), math.rad(180))
+		tip.Color = BANNER_RED
+		tip.Material = Enum.Material.Fabric
+		tip.Parent = parent
+	end
+	local trim = newPart(
+		"Franja",
+		Vector3.new(width, 0.6, 0.4),
+		cf * CFrame.new(0, -height / 2 + 0.3, 0),
+		GOLD,
 		parent
 	)
 	trim.CanCollide = false
 	for _, face in { Enum.NormalId.Front, Enum.NormalId.Back } do
 		local gui = Instance.new("SurfaceGui")
 		gui.Face = face
-		gui.CanvasSize = Vector2.new(200, 450)
-		gui.LightInfluence = 0.6
+		gui.CanvasSize = Vector2.new(200, math.floor(200 * height / width))
+		gui.LightInfluence = 0.5
 		local bg = Instance.new("Frame")
 		bg.Size = UDim2.fromScale(1, 1)
 		bg.BackgroundTransparency = 1
 		bg.Parent = gui
-		hexEmblem(bg, Color3.fromRGB(240, 185, 60))
+		-- Borda dourada.
+		local border = Instance.new("UIStroke")
+		border.Color = GOLD
+		border.Thickness = 6
+		border.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		local inner = Instance.new("Frame")
+		inner.AnchorPoint = Vector2.new(0.5, 0.5)
+		inner.Position = UDim2.fromScale(0.5, 0.5)
+		inner.Size = UDim2.new(1, -24, 1, -24)
+		inner.BackgroundTransparency = 1
+		border.Parent = inner
+		inner.Parent = bg
+		local crown = Instance.new("TextLabel")
+		crown.BackgroundTransparency = 1
+		crown.AnchorPoint = Vector2.new(0.5, 0.5)
+		crown.Position = UDim2.fromScale(0.5, 0.3)
+		crown.Size = UDim2.fromScale(0.6, 0.18)
+		crown.TextScaled = true
+		crown.Text = "👑"
+		crown.Parent = bg
+		hexEmblem(bg, GOLD, 0.55, 0.2)
+		hexEmblem(bg, BANNER_RED, 0.55, 0.12)
 		gui.Parent = cloth
 	end
 end
 
-local function lantern(parent: Instance, position: Vector3)
-	local glass = ball("Lanterna", 2.6, position, Color3.fromRGB(255, 210, 110), parent)
-	glass.Material = Enum.Material.Neon
-	glass.CanCollide = false
+-- Lanterna de verdade: tampa, vidro aceso e base. Acende a luz à noite.
+local function lantern(parent: Instance, position: Vector3, scale: number?)
+	local k = scale or 1
 	newPart(
-		"Gancho",
-		Vector3.new(0.3, 3, 0.3),
-		CFrame.new(position + Vector3.new(0, 2.6, 0)),
-		Color3.fromRGB(60, 45, 30),
+		"Tampa",
+		Vector3.new(2.4, 0.5, 2.4) * k,
+		CFrame.new(position + Vector3.new(0, 1.55 * k, 0)),
+		DARK_WOOD,
 		parent
 	).CanCollide =
 		false
-	local glow = light(glass, Color3.fromRGB(255, 190, 100), 24, 1)
+	newPart(
+		"Topo",
+		Vector3.new(1, 0.6, 1) * k,
+		CFrame.new(position + Vector3.new(0, 2.1 * k, 0)),
+		DARK_WOOD,
+		parent
+	).CanCollide =
+		false
+	local glass =
+		uprightCylinder("Lanterna", 2.6 * k, 1.9 * k, position, Color3.fromRGB(255, 205, 110), parent)
+	glass.Material = Enum.Material.Neon
+	glass.CanCollide = false
+	newPart(
+		"Base",
+		Vector3.new(2.2, 0.4, 2.2) * k,
+		CFrame.new(position - Vector3.new(0, 1.5 * k, 0)),
+		DARK_WOOD,
+		parent
+	).CanCollide =
+		false
+	local glow = light(glass, Color3.fromRGB(255, 185, 95), 26 * k, 1.3)
+	glow.Enabled = false
 	CollectionService:AddTag(glow, MapBuilder.Tags.NightGlow)
 end
 
-local function decorateHiveTree(parent: Instance, plotCF: CFrame, trunkCenter: Vector3)
-	-- Bandeiras dos lados da parede.
-	banner(parent, plotCF * CFrame.new(-30, 38, -1))
-	banner(parent, plotCF * CFrame.new(30, 38, -1))
-	-- Lanternas na frente da plataforma.
-	lantern(parent, (plotCF * CFrame.new(-24, 10, -22)).Position)
-	lantern(parent, (plotCF * CFrame.new(24, 10, -22)).Position)
+-- Poste de madeira com lanterna pendurada.
+local function lampPost(parent: Instance, base: Vector3, facing: CFrame)
+	local height = 11
+	uprightCylinder("Poste", height, 0.9, base + Vector3.new(0, height / 2, 0), DARK_WOOD, parent).CanCollide =
+		false
+	local arm = newPart(
+		"Braco",
+		Vector3.new(0.6, 0.6, 3),
+		CFrame.new(base + Vector3.new(0, height - 0.3, 0)) * facing.Rotation * CFrame.new(0, 0, -1.3),
+		DARK_WOOD,
+		parent
+	)
+	arm.CanCollide = false
+	local hang = (arm.CFrame * CFrame.new(0, -2.4, -1.2)).Position
+	lantern(parent, hang, 0.8)
+end
+
+-- Luzinhas (pisca-pisca) ao longo de uma curva: lista de pontos.
+local function fairyLights(parent: Instance, points: { Vector3 })
+	for i, point in points do
+		local bulb = ball("Luzinha", 0.7, point, FAIRY_COLORS[(i % #FAIRY_COLORS) + 1], parent)
+		bulb.Material = Enum.Material.Neon
+		bulb.CanCollide = false
+		bulb.CastShadow = false
+	end
+end
+
+-- Caixote com blocos de cera empilhados (como os da referência).
+local function waxCrate(parent: Instance, cf: CFrame)
+	local box = newPart(
+		"Caixote",
+		Vector3.new(5, 3, 5),
+		cf * CFrame.new(0, 1.5, 0),
+		Color3.fromRGB(150, 105, 62),
+		parent
+	)
+	box.Material = Enum.Material.WoodPlanks
+	for x = -1, 1, 2 do
+		for z = -1, 1, 2 do
+			local wax = newPart(
+				"Cera",
+				Vector3.new(2.1, 1.6, 2.1),
+				cf * CFrame.new(x * 1.15, 3.8, z * 1.15),
+				WAX,
+				parent
+			)
+			wax.CanCollide = false
+		end
+	end
+	newPart("Cera", Vector3.new(2.1, 1.6, 2.1), cf * CFrame.new(0.4, 5.4, -0.2), WAX, parent).CanCollide =
+		false
+end
+
+-- Arco de madeira com friso dourado emoldurando a parede de favos.
+local function hiveArch(parent: Instance, center: CFrame, radius: number, postBottom: number)
+	local thickness = 4
+	local postHeight = -postBottom
+	for side = -1, 1, 2 do
+		local post = newPart(
+			"Pilar",
+			Vector3.new(thickness, postHeight, thickness),
+			center * CFrame.new(side * radius, -postHeight / 2, 0),
+			Color3.fromRGB(135, 92, 52),
+			parent
+		)
+		post.Material = Enum.Material.Wood
+		local trim = newPart(
+			"Friso",
+			Vector3.new(0.7, postHeight, 0.7),
+			center * CFrame.new(side * (radius - thickness / 2 - 0.2), -postHeight / 2, -thickness / 2),
+			GOLD,
+			parent
+		)
+		trim.CanCollide = false
+	end
+	local segments = 14
+	local bulbs = {}
+	for i = 0, segments - 1 do
+		local angle = math.pi * (i + 0.5) / segments
+		local length = math.pi * radius / segments + 0.8
+		local segment = newPart(
+			"Arco",
+			Vector3.new(length, thickness, thickness),
+			center
+				* CFrame.new(math.cos(angle) * radius, math.sin(angle) * radius, 0)
+				* CFrame.Angles(0, 0, angle + math.pi / 2),
+			Color3.fromRGB(135, 92, 52),
+			parent
+		)
+		segment.Material = Enum.Material.Wood
+		local inner = radius - thickness / 2 - 0.2
+		local trim = newPart(
+			"Friso",
+			Vector3.new(math.pi * inner / segments + 0.3, 0.7, 0.7),
+			center
+				* CFrame.new(math.cos(angle) * inner, math.sin(angle) * inner, -thickness / 2)
+				* CFrame.Angles(0, 0, angle + math.pi / 2),
+			GOLD,
+			parent
+		)
+		trim.CanCollide = false
+	end
+	-- Luzinhas por fora do arco.
+	for i = 0, 20 do
+		local angle = math.pi * i / 20
+		table.insert(
+			bulbs,
+			(center * CFrame.new(math.cos(angle) * (radius + 2.6), math.sin(angle) * (radius + 2.6), -1)).Position
+		)
+	end
+	fairyLights(parent, bulbs)
+end
+
+local function decorateHiveTree(parent: Instance, plotCF: CFrame, trunkCenter: Vector3, wallCenter: CFrame)
+	local archRadius = 30
+	hiveArch(parent, wallCenter * CFrame.new(0, 0, -1.6), archRadius, -wallCenter.Position.Y + 2)
+	-- Estandartes vermelhos pendurados nos pilares do arco.
+	banner(parent, wallCenter * CFrame.new(-archRadius, -6, -4), 6, 14)
+	banner(parent, wallCenter * CFrame.new(archRadius, -6, -4), 6, 14)
+	-- Lanternas penduradas no arco, dos dois lados (sem tampar as células).
+	for side = -1, 1, 2 do
+		local angle = math.rad(90 - 40 * side)
+		local inner = archRadius - 2.2
+		local hook = wallCenter * CFrame.new(math.cos(angle) * inner, math.sin(angle) * inner, -4)
+		lantern(parent, (hook * CFrame.new(0, -3.4, 0)).Position, 0.9)
+	end
+	-- Postes com lanterna na frente da plataforma.
+	lampPost(parent, (plotCF * CFrame.new(-25, 2, -21)).Position, plotCF)
+	lampPost(parent, (plotCF * CFrame.new(25, 2, -21)).Position, plotCF)
+	-- Caixotes de cera nos cantos.
+	waxCrate(parent, plotCF * CFrame.new(-21, 2, -3) * CFrame.Angles(0, 0.3, 0))
+	waxCrate(parent, plotCF * CFrame.new(21, 2, -3) * CFrame.Angles(0, -0.25, 0))
 	-- Potes de mel pendurados na copa.
 	for i = 1, 4 do
 		local a = i * 1.57 + 0.6
@@ -814,6 +1039,92 @@ local function decorateHiveTree(parent: Instance, plotCF: CFrame, trunkCenter: V
 		parent
 	)
 	ring.Material = Enum.Material.WoodPlanks
+end
+
+-- Tronco da árvore-colmeia: janelas redondas, varandinhas e raízes.
+-- `a` = ângulo em volta do tronco no espaço do lote (0 = fundos, 180° = frente).
+local function decorateTrunk(parent: Instance, plotCF: CFrame, trunkCenter: Vector3, radius: number)
+	local function around(a: number): Vector3
+		return plotCF:VectorToWorldSpace(Vector3.new(math.sin(math.rad(a)), 0, math.cos(math.rad(a))))
+	end
+	local windows = {
+		{ -65, 22, true },
+		{ 65, 30, false },
+		{ -110, 52, false },
+		{ 110, 46, true },
+		{ 0, 40, true },
+		{ -30, 70, false },
+		{ 35, 66, false },
+	}
+	for _, info in windows do
+		local dir = around(info[1])
+		local center = Vector3.new(trunkCenter.X, info[2], trunkCenter.Z) + dir * (radius + 0.3)
+		-- Cilindro com o eixo apontando para fora do tronco.
+		local facing = CFrame.lookAt(center, center + dir) * CFrame.Angles(0, math.rad(90), 0)
+		local frame = newPart("Moldura", Vector3.new(1, 8.4, 8.4), facing, DARK_WOOD, parent)
+		frame.Shape = Enum.PartType.Cylinder
+		local glass =
+			newPart("Janela", Vector3.new(1.3, 6.6, 6.6), facing, Color3.fromRGB(210, 150, 70), parent)
+		glass.Shape = Enum.PartType.Cylinder
+		glass.Material = Enum.Material.Glass
+		glass:SetAttribute("NightColor", Color3.fromRGB(255, 200, 110))
+		CollectionService:AddTag(glass, MapBuilder.Tags.NightGlow)
+		local glow = light(glass, Color3.fromRGB(255, 185, 95), 20, 1)
+		glow.Enabled = false
+		CollectionService:AddTag(glow, MapBuilder.Tags.NightGlow)
+		-- Cruz da janela.
+		for _, angle in { 0, 90 } do
+			newPart(
+				"Travessa",
+				Vector3.new(1.5, 0.5, 6.6),
+				facing * CFrame.Angles(math.rad(angle), 0, 0),
+				DARK_WOOD,
+				parent
+			).CanCollide =
+				false
+		end
+		if info[3] then
+			-- Varandinha com parapeito embaixo da janela.
+			local deckCF = CFrame.lookAt(
+				center + dir * 2.6 - Vector3.new(0, 5, 0),
+				center + dir * 10 - Vector3.new(0, 5, 0)
+			)
+			local deck =
+				newPart("Varandinha", Vector3.new(10, 0.8, 5), deckCF, Color3.fromRGB(150, 105, 62), parent)
+			deck.Material = Enum.Material.WoodPlanks
+			newPart(
+				"Parapeito",
+				Vector3.new(10, 0.4, 0.4),
+				deckCF * CFrame.new(0, 2.4, -2.3),
+				DARK_WOOD,
+				parent
+			).CanCollide =
+				false
+			for x = -4.6, 4.6, 2.3 do
+				newPart(
+					"Balaustre",
+					Vector3.new(0.35, 2.4, 0.35),
+					deckCF * CFrame.new(x, 1.2, -2.3),
+					DARK_WOOD,
+					parent
+				).CanCollide =
+					false
+			end
+		end
+	end
+	-- Raízes grossas saindo da base.
+	for _, a in { 0, 60, -60, 125, -125 } do
+		local dir = around(a)
+		local start = Vector3.new(trunkCenter.X, 3, trunkCenter.Z) + dir * (radius - 2)
+		local root = newPart(
+			"Raiz",
+			Vector3.new(7, 5, 18),
+			CFrame.lookAt(start + dir * 6, start + dir * 20 - Vector3.new(0, 6, 0)),
+			Color3.fromRGB(100, 70, 45),
+			parent
+		)
+		root.Material = Enum.Material.Wood
+	end
 end
 
 -- Ponte de tábuas entre duas árvores-colmeia vizinhas.
@@ -851,6 +1162,15 @@ local function bridge(parent: Instance, from: Vector3, to: Vector3)
 		)
 		rope.CanCollide = false
 		rope.Material = Enum.Material.Fabric
+		-- Pisca-pisca pendurado na corda, com leve barriga.
+		local bulbs = {}
+		local count = math.max(2, math.floor(length / 4))
+		for i = 0, count do
+			local t = i / count
+			local sag = math.sin(t * math.pi) * 1.5
+			table.insert(bulbs, (cf * CFrame.new(side * 4, 2.2 - sag, -length / 2 + t * length)).Position)
+		end
+		fairyLights(model, bulbs)
 	end
 	model.Parent = parent
 end
@@ -871,16 +1191,36 @@ local function buildPlot(parent: Instance, index: number, total: number): Plot
 	local trunkCenter = (plotCF * CFrame.new(0, 55, 36)).Position
 	local trunk = uprightCylinder("Tronco", 110, 66, trunkCenter, Color3.fromRGB(110, 78, 50), folder)
 	trunk.Material = Enum.Material.Wood
+	decorateTrunk(folder, plotCF, trunkCenter, 33)
 
-	-- Casca plana onde as células encostam.
+	-- Casca plana onde as células encostam (atrás do arco).
 	local bark = newPart(
 		"Casca",
-		Vector3.new(50, 50, 4),
-		plotCF * CFrame.new(0, 30, 5),
-		Color3.fromRGB(125, 88, 55),
+		Vector3.new(64, 70, 4),
+		plotCF * CFrame.new(0, 35, 5),
+		Color3.fromRGB(96, 64, 38),
 		folder
 	)
 	bark.Material = Enum.Material.WoodPlanks
+	-- Fundo da parede de favos: cor de mel escuro, para as células "saltarem".
+	-- Formato do arco: disco em cima + retângulo embaixo.
+	local honeyBack = newPart(
+		"FundoFavos",
+		Vector3.new(0.6, 56, 56),
+		plotCF * CFrame.new(0, 34, 2.9) * CFrame.Angles(0, math.rad(90), 0),
+		Color3.fromRGB(120, 70, 20),
+		folder
+	)
+	honeyBack.Shape = Enum.PartType.Cylinder
+	honeyBack.CanCollide = false
+	local honeyBottom = newPart(
+		"FundoFavosBase",
+		Vector3.new(56, 30, 0.6),
+		plotCF * CFrame.new(0, 19, 2.9),
+		Color3.fromRGB(120, 70, 20),
+		folder
+	)
+	honeyBottom.CanCollide = false
 
 	-- Copa.
 	for i = 1, 5 do
@@ -896,7 +1236,8 @@ local function buildPlot(parent: Instance, index: number, total: number): Plot
 		leaves.Material = Enum.Material.Grass
 	end
 
-	decorateHiveTree(folder, plotCF, trunkCenter)
+	local wallOrigin = plotCF * CFrame.new(0, 34, 1.5)
+	decorateHiveTree(folder, plotCF, trunkCenter, wallOrigin)
 
 	-- Plataforma de madeira na frente.
 	local deck = newPart(
@@ -930,7 +1271,7 @@ local function buildPlot(parent: Instance, index: number, total: number): Plot
 	local sign = Instance.new("BillboardGui")
 	sign.Name = "Placa"
 	sign.Size = UDim2.fromScale(28, 4.5) -- em studs: some com a distância
-	sign.StudsOffset = Vector3.new(0, 30, 0)
+	sign.StudsOffset = Vector3.new(0, 42, 0)
 	sign.MaxDistance = 320
 	sign.LightInfluence = 0
 	sign.Adornee = bark
@@ -953,7 +1294,6 @@ local function buildPlot(parent: Instance, index: number, total: number): Plot
 	cells.Parent = folder
 
 	local spawnPosition = (plotCF * CFrame.new(0, 12, -38)).Position
-	local wallOrigin = plotCF * CFrame.new(0, 30, 1.5)
 	local spawnCFrame = CFrame.lookAt(spawnPosition, Vector3.new(wallOrigin.X, spawnPosition.Y, wallOrigin.Z))
 
 	-- Ponto de nascimento invisível do dono deste lote.
@@ -1093,6 +1433,7 @@ function MapBuilder.Build(): MapData
 		Flowers = flowers,
 		Combs = combs,
 		SpiderSpots = treeBases,
+		MantisSpots = mushroomTops,
 		RoyalPosition = Config.Map.RoyalHive.Position + Vector3.new(0, Config.Map.RoyalHive.PlateauHeight, 0),
 		DefaultSpawn = CFrame.new(0, 15, 0),
 	}

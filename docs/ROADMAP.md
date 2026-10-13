@@ -9,11 +9,31 @@
 | D | Combate entre abelhas e carga perdida | ✅ código pronto |
 | E | Salvamento, XP/nível, acessórios, HUD final | ✅ código pronto (falta som) |
 | Salto 8 | Missões, mel passivo, especialidades, modelos 3D próprios, voo com inclinação e arrancada, painel com abas, animações, partículas de ambiente, sons configuráveis | ✅ código pronto |
-| F | Sons escolhidos (IDs), clãs, louva-a-deus, mais modelos | ⏳ próximo |
+| Salto 9 | Parede de favos brilhante (moldura dourada, cera, vidro em construção), fachada com arco, estandartes vermelhos com coroa, lanternas, pisca-pisca, caixotes de cera, abelhas operárias voando, noite roxa com lua grande e flores acesas | ✅ código pronto |
+| Salto 10 | Louva-a-deus (bote com aviso), abelhinhas dentro das células, mel escorrendo, janelas/varandas/raízes nas árvores-colmeia, trilha dourada até o objetivo (G) | ✅ código pronto |
+| F | Sons escolhidos (IDs), clãs, mais modelos | ⏳ próximo |
 
 "Código pronto" = passou na verificação de tipos e nos testes de lógica, mas ainda precisa do teste no Studio abaixo.
 
-## Roteiro de teste — Salto 8 (o que é novo)
+## Roteiro de teste — Salto 10
+
+1. **Trilha dourada:** logo ao nascer, uma linha em arco sai da sua abelha até a flor mais perto com néctar, com "👇 Néctar · X m". Com a carga cheia, ela aponta para o pote. **G** liga/desliga.
+2. **Abelhinhas nas células:** dentro de parte das células prontas, abelhas pequenas andando de lado e virando.
+3. **Mel escorrendo:** gotas caindo de algumas células.
+4. **Árvores-colmeia por fora:** janelas redondas (âmbar de dia, acesas à noite), varandinhas com parapeito e raízes grossas.
+5. **Louva-a-deus:** no bosque, em cima de cogumelos (fora da área protegida). Chegue a ~35 studs: ele ergue os braços, olhos vermelhos e "!". **Mude de lugar** durante o aviso: o bote vai onde você estava e erra. Ficando parado, leva 25 de dano.
+6. Saída: "X aranhas e Y louva-a-deus no bosque".
+
+## Roteiro de teste — Salto 9 (visual da referência)
+
+1. **Sua colmeia:** arco de madeira com friso dourado e luzinhas em volta da parede de favos; estandartes vermelhos com 👑 nos pilares; postes com lanterna na frente; caixotes com blocos de cera.
+2. **Células:** prontas = moldura dourada, fundo cor de mel brilhando e blocos de cera dentro. Em construção = vidro claro com o cartão "Construção X%" e barra. Próxima = contorno transparente.
+3. **Abelhas operárias:** 3 por árvore pairando na frente dos favos, voando até as flores e voltando; um enxame girando na Colmeia Real.
+4. **Noite** (dica: `DayDuration = 60`, `NightDuration = 40` no Config): céu roxo com lua grande e estrelas, lanternas acesas, pétalas internas das flores brilhando, cogumelos neon. De manhã tudo volta às cores normais.
+5. **Pontes:** pisca-pisca nas cordas.
+6. **HUD:** 🍯 no chip de Mel e 🌼 no de Néctar.
+
+## Roteiro de teste — Salto 8
 
 1. **Voo:** voe para a frente e vire o mouse: a câmera e o corpo **inclinam** na curva; ao acelerar, o campo de visão abre.
 2. **Arrancada:** segure **Shift** voando. Aparece a barra azul "Fôlego", riscos de vento passam pela tela; soltando, o fôlego volta.

@@ -4,7 +4,7 @@ Jogo para Roblox em Luau. O código é editado no **VS Code** e sincronizado com
 
 > **Estado atual:** jogo completo para teste, agora com voo inclinando nas curvas, arrancada, missões em sequência, mel fabricado pela colmeia, especialidades, painel com abas, animações de coleta/nível, pólen e vaga-lumes, e um pacote de modelos 3D próprios (`modelos3d/`). Inclui: voo, mapa com árvores-colmeia, flores gigantes, bosque e Colmeia Real; três raridades de favo; colmeia que cresce; melhorias e acessórios; dia e noite; aranhas; vida, derrota e carga perdida; combate na zona de disputa; nível/XP; salvamento. Veja `docs/ROADMAP.md` (roteiro de teste) e `docs/MODELOS_3D.md` (deixar com cara das imagens de referência).
 
-**Controles (PC):** WASD voa · Espaço sobe · Ctrl/Q desce · **Shift arranca** (gasta fôlego) · segure E para coletar/entregar/construir · clique ataca (zona de disputa) · 1 Coletar · 2 Sua colmeia (ou U) · 3 Clã · Esc solta o mouse.
+**Controles (PC):** WASD voa · Espaço sobe · Ctrl/Q desce · **Shift arranca** (gasta fôlego) · **G** liga/desliga a trilha dourada até o objetivo · segure E para coletar/entregar/construir · clique ataca (zona de disputa) · 1 Coletar · 2 Sua colmeia (ou U) · 3 Clã · Esc solta o mouse.
 **Celular:** joystick + botões Subir/Descer/Arrancar/Atacar · toque nos avisos e na barra de ações.
 
 ---

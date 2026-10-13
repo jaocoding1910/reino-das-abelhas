@@ -46,9 +46,12 @@ local plotOfPlayer: { [Player]: number } = {}
 local slotLayout = Hex.SpiralSlots(Config.Hive.Rings)
 
 local COLORS = {
-	Completed = Color3.fromRGB(255, 176, 40),
-	Building = Color3.fromRGB(255, 215, 130),
+	Frame = Color3.fromRGB(196, 132, 52), -- moldura de cera/madeira dourada
+	Honey = Color3.fromRGB(235, 145, 30), -- fundo da célula pronta (brilha)
+	Wax = Color3.fromRGB(252, 246, 228), -- blocos de cera dentro da célula
+	Glass = Color3.fromRGB(215, 235, 255), -- célula em construção (vidro)
 	Ghost = Color3.fromRGB(255, 245, 220),
+	Empty = Color3.fromRGB(150, 96, 42), -- moldura de posição ainda vazia
 }
 
 local notify = Notifier.Notify
@@ -107,45 +110,172 @@ function HiveService.GetHivePosition(player: Player): Vector3?
 	return if index then plots[index].Data.WallOrigin.Position else nil
 end
 
+function HiveService.GetDeliveryPosition(player: Player): Vector3?
+	local index = plotOfPlayer[player]
+	return if index then plots[index].Data.Delivery.Position else nil
+end
+
 -- Visual --------------------------------------------------------------------
 
-local function addProgressLabel(cell: Model, progress: number)
+local function addProgressLabel(adornee: BasePart, parent: Instance, progress: number)
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "Progresso"
-	gui.Size = UDim2.fromOffset(160, 36)
-	gui.StudsOffset = Vector3.new(0, 0, 0)
-	gui.MaxDistance = 120
+	gui.Size = UDim2.fromOffset(170, 50)
+	gui.StudsOffset = Vector3.new(0, Config.Hive.CellSide * 1.6, 0)
+	gui.MaxDistance = 140
 	gui.LightInfluence = 0
 	gui.AlwaysOnTop = true
-	gui.Adornee = cell.PrimaryPart
+	gui.Adornee = adornee
 
 	local bg = Instance.new("Frame")
 	bg.Size = UDim2.fromScale(1, 1)
 	bg.BackgroundColor3 = Color3.fromRGB(28, 22, 16)
-	bg.BackgroundTransparency = 0.2
+	bg.BackgroundTransparency = 0.15
 	bg.Parent = gui
 	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 8)
+	corner.CornerRadius = UDim.new(0, 10)
 	corner.Parent = bg
-
-	local fill = Instance.new("Frame")
-	fill.Size = UDim2.new(progress / 100, 0, 1, 0)
-	fill.BackgroundColor3 = Color3.fromRGB(255, 176, 40)
-	fill.BackgroundTransparency = 0.35
-	fill.Parent = bg
-	local fillCorner = corner:Clone()
-	fillCorner.Parent = fill
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(176, 120, 24)
+	stroke.Transparency = 0.2
+	stroke.Parent = bg
 
 	local label = Instance.new("TextLabel")
-	label.Size = UDim2.fromScale(1, 1)
+	label.Position = UDim2.fromOffset(12, 4)
+	label.Size = UDim2.new(1, -24, 0, 24)
 	label.BackgroundTransparency = 1
 	label.Font = Enum.Font.GothamBold
 	label.TextScaled = true
+	label.TextXAlignment = Enum.TextXAlignment.Left
 	label.TextColor3 = Color3.fromRGB(250, 244, 230)
 	label.Text = `Construção {math.floor(progress)}%`
 	label.Parent = bg
 
-	gui.Parent = cell
+	local back = Instance.new("Frame")
+	back.Position = UDim2.fromOffset(12, 32)
+	back.Size = UDim2.new(1, -24, 0, 10)
+	back.BackgroundColor3 = Color3.fromRGB(60, 48, 36)
+	back.BorderSizePixel = 0
+	back.Parent = bg
+	local backCorner = Instance.new("UICorner")
+	backCorner.CornerRadius = UDim.new(1, 0)
+	backCorner.Parent = back
+	local fill = Instance.new("Frame")
+	fill.Size = UDim2.fromScale(math.clamp(progress / 100, 0, 1), 1)
+	fill.BackgroundColor3 = Color3.fromRGB(255, 196, 64)
+	fill.BorderSizePixel = 0
+	fill.Parent = back
+	local fillCorner = backCorner:Clone()
+	fillCorner.Parent = fill
+
+	gui.Parent = parent
+end
+
+-- Uma célula da parede: moldura dourada + fundo + conteúdo, conforme o estado.
+-- kind: "Pronta" | "Construindo" | "Fantasma" | "Vazia"
+local function buildCell(cf: CFrame, slot: number, kind: string, progress: number): Model
+	local side = Config.Hive.CellSide
+	local model = Instance.new("Model")
+	model.Name = if kind == "Fantasma" then "ProximaCelula" else `Celula_{slot}`
+
+	if kind == "Pronta" then
+		Hex.Frame(cf, side, 3.4, { Color = COLORS.Frame, Thickness = 0.75 }, model)
+		local back = Hex.Prism(cf * CFrame.new(0, 0, 1.2), side * 0.92, 0.6, {
+			Color = COLORS.Honey,
+			Material = Enum.Material.Neon,
+			Name = "Fundo",
+		})
+		back.Parent = model
+		model.PrimaryPart = back.PrimaryPart
+		-- Blocos de cera no "chão" da célula (varia por posição, sem sorteio).
+		local blocks = 1 + slot % 3
+		for i = 1, blocks do
+			local x = (i - (blocks + 1) / 2) * 1.25
+			local stack = if i == 2 then 1 else 0
+			for level = 0, stack do
+				local wax = Instance.new("Part")
+				wax.Name = "Cera"
+				wax.Anchored = true
+				wax.CanCollide = false
+				wax.Size = Vector3.new(1.1, 1, 1.1)
+				wax.CFrame = cf * CFrame.new(x, -side * 0.69 + 0.5 + level * 1, 0.2)
+				wax.Color = COLORS.Wax
+				wax.Material = Enum.Material.SmoothPlastic
+				wax.Parent = model
+			end
+		end
+		-- Mel escorrendo de algumas células.
+		if slot % 4 == 2 then
+			local drip = Instance.new("Attachment")
+			drip.Name = "Gota"
+			drip.Position = (back.PrimaryPart :: BasePart).CFrame:PointToObjectSpace(
+				(cf * CFrame.new(0, -side * 0.8, -0.6)).Position
+			)
+			drip.Parent = back.PrimaryPart
+			local emitter = Instance.new("ParticleEmitter")
+			emitter.Color = ColorSequence.new(Color3.fromRGB(255, 170, 40))
+			emitter.LightEmission = 0.4
+			emitter.Rate = 0.7
+			emitter.Lifetime = NumberRange.new(1, 1.4)
+			emitter.Speed = NumberRange.new(0)
+			emitter.Acceleration = Vector3.new(0, -14, 0)
+			emitter.Size = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 0.1),
+				NumberSequenceKeypoint.new(0.2, 0.28),
+				NumberSequenceKeypoint.new(1, 0.2),
+			})
+			emitter.Parent = drip
+		end
+		-- Luz quente em parte das células (todas pesaria no celular).
+		if slot % 3 == 1 then
+			local glow = Instance.new("PointLight")
+			glow.Color = Color3.fromRGB(255, 180, 80)
+			glow.Range = 12
+			glow.Brightness = 0.8
+			glow.Parent = back.PrimaryPart
+		end
+	elseif kind == "Construindo" then
+		Hex.Frame(cf, side, 3.4, {
+			Color = COLORS.Glass,
+			Material = Enum.Material.Glass,
+			Transparency = 0.25,
+			Thickness = 0.6,
+		}, model)
+		-- O fundo vai ficando cor de mel conforme a construção avança.
+		local back = Hex.Prism(cf * CFrame.new(0, 0, 1.2), side * 0.92, 0.6, {
+			Color = COLORS.Glass:Lerp(COLORS.Honey, progress / 100),
+			Material = Enum.Material.Glass,
+			Transparency = 0.75 - 0.5 * progress / 100,
+			Name = "Fundo",
+		})
+		back.Parent = model
+		model.PrimaryPart = back.PrimaryPart
+		local glow = Instance.new("PointLight")
+		glow.Color = Color3.fromRGB(200, 230, 255)
+		glow.Range = 10
+		glow.Brightness = 1
+		glow.Parent = back.PrimaryPart
+		addProgressLabel(back.PrimaryPart :: BasePart, model, progress)
+	elseif kind == "Vazia" then
+		-- Só a moldura, recuada: a parede já parece uma colmeia desde o começo.
+		model.Name = `Vazia_{slot}`
+		Hex.Frame(cf * CFrame.new(0, 0, 0.9), side, 1.4, { Color = COLORS.Empty, Thickness = 0.55 }, model)
+	else
+		Hex.Frame(cf, side, 2, {
+			Color = COLORS.Ghost,
+			Transparency = 0.55,
+			Thickness = 0.45,
+		}, model)
+		local back = Hex.Prism(cf * CFrame.new(0, 0, 1.2), side * 0.92, 0.4, {
+			Color = COLORS.Ghost,
+			Transparency = 0.85,
+			CanCollide = false,
+			Name = "Fundo",
+		})
+		back.Parent = model
+		model.PrimaryPart = back.PrimaryPart
+	end
+	return model
 end
 
 local function renderPlot(index: number)
@@ -155,45 +285,24 @@ local function renderPlot(index: number)
 
 	local owner = plot.Owner
 	if not owner then
+		for slot = 1, Config.Hive.MaxCells do
+			buildCell(slotCFrame(plot, slot), slot, "Vazia", 0).Parent = folder
+		end
 		plot.Data.SignLabel.Text = "Colmeia livre"
 		return
 	end
 
 	local profile = PlayerDataService.Get(owner)
-	local side = Config.Hive.CellSide
-	local depth = 3
 
 	for _, cell in profile.Cells do
-		local model
-		if cell.Completed then
-			model = Hex.Prism(slotCFrame(plot, cell.Slot), side, depth, {
-				Color = COLORS.Completed,
-				Material = Enum.Material.Glass,
-				Transparency = 0.1,
-				Name = `Celula_{cell.Slot}`,
-			})
-		else
-			model = Hex.Prism(slotCFrame(plot, cell.Slot), side, depth * 0.6, {
-				Color = COLORS.Building,
-				Material = Enum.Material.SmoothPlastic,
-				Transparency = 0.5,
-				Name = `Celula_{cell.Slot}`,
-			})
-			addProgressLabel(model, cell.Progress)
-		end
-		model.Parent = folder
+		local kind = if cell.Completed then "Pronta" else "Construindo"
+		buildCell(slotCFrame(plot, cell.Slot), cell.Slot, kind, cell.Progress).Parent = folder
 	end
 
 	-- Próxima posição livre: mostra um "fantasma" com o custo e o prompt.
 	local nextSlot = #profile.Cells + 1
 	if not HiveService.GetBuilding(profile) and nextSlot <= Config.Hive.MaxCells then
-		local ghost = Hex.Prism(slotCFrame(plot, nextSlot), side, depth * 0.4, {
-			Color = COLORS.Ghost,
-			Material = Enum.Material.SmoothPlastic,
-			Transparency = 0.75,
-			CanCollide = false,
-			Name = "ProximaCelula",
-		})
+		local ghost = buildCell(slotCFrame(plot, nextSlot), nextSlot, "Fantasma", 0)
 		local prompt = Instance.new("ProximityPrompt")
 		prompt.ActionText = "Construir célula"
 		prompt.ObjectText =
@@ -206,6 +315,12 @@ local function renderPlot(index: number)
 			HiveService.TryBuild(player, index)
 		end)
 		ghost.Parent = folder
+	end
+
+	-- Molduras vazias no resto da parede.
+	local firstEmpty = #profile.Cells + (if HiveService.GetBuilding(profile) then 1 else 2)
+	for slot = firstEmpty, Config.Hive.MaxCells do
+		buildCell(slotCFrame(plot, slot), slot, "Vazia", 0).Parent = folder
 	end
 
 	plot.Data.SignLabel.Text =

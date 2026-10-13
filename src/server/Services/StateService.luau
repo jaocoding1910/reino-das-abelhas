@@ -64,6 +64,7 @@ function StateService.Build(player: Player)
 		Building = if building then { Slot = building.Slot, Progress = building.Progress } else nil,
 		CellHoneyCost = Config.Hive.CellHoneyCost,
 		HivePosition = HiveService.GetHivePosition(player),
+		DeliveryPosition = HiveService.GetDeliveryPosition(player),
 		Upgrades = UpgradeService.Summary(player),
 		Cosmetics = CosmeticService.Summary(player),
 		Level = level,

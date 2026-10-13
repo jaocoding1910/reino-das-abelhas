@@ -78,6 +78,7 @@ function QuestService.Summary(player: Player)
 	local profile = PlayerDataService.Get(player)
 	local quest = QuestService.Current(profile)
 	return {
+		Kind = quest.Kind,
 		Text = quest.Text,
 		Progress = profile.QuestProgress,
 		Goal = quest.Goal,
