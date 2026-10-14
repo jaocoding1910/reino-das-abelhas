@@ -19,6 +19,7 @@ local Config = require(Shared.Config)
 local Log = require(Shared.Util.Log)
 local Types = require(Shared.Types)
 
+local Boosts = require(script.Parent.Parent.Lib.Boosts)
 local Notifier = require(script.Parent.Parent.Lib.Notifier)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 
@@ -57,7 +58,11 @@ function InventoryService.Capacity(player: Player): number
 	local level = PlayerDataService.Get(player).Upgrades.Capacidade or 0
 	local base = Config.Carry.BaseCapacity + level * Config.Upgrades.Capacidade.BonusPerLevel
 	local info = specialty(player)
-	return math.floor(base * (if info then info.CapacityMultiplier else 1))
+	local capacity = math.floor(base * (if info then info.CapacityMultiplier else 1))
+	if Boosts.IsActive(player, "Mochila") then
+		capacity += Config.Potions.Mochila.CapacityBonus
+	end
+	return capacity
 end
 
 function InventoryService.FreeSpace(player: Player): number
@@ -81,8 +86,17 @@ local function updateSpeed(player: Player)
 	if info then
 		bonus *= info.SpeedMultiplier
 	end
+	if Boosts.IsActive(player, "Velocidade") then
+		bonus *= 1 + Config.Potions.Velocidade.SpeedBonus
+	end
 	local slow = if (slowUntil[player] or 0) > os.clock() then slowFactor[player] or 1 else 1
 	player:SetAttribute("SpeedMultiplier", bonus * (1 - penalty) * slow)
+	-- Fôlego máximo da arrancada (melhoria Fôlego); o cliente lê este atributo.
+	local folego = PlayerDataService.Get(player).Upgrades.Folego or 0
+	player:SetAttribute(
+		"StaminaMax",
+		Config.Flight.StaminaMax + folego * Config.Upgrades.Folego.BonusPerLevel
+	)
 	player:SetAttribute("Slowed", slow < 1)
 end
 
@@ -136,6 +150,15 @@ function InventoryService.Take(player: Player): Types.Cargo
 	updateSpeed(player)
 	publish(player)
 	return cargo
+end
+
+-- Derrota: tira uma FRAÇÃO de cada tipo carregado (arredonda para cima) e
+-- devolve o que saiu. O resto continua na mochila. Usado uma vez por derrota.
+function InventoryService.TakeFraction(player: Player, fraction: number): Types.Cargo
+	local lost = Types.SplitCargo(InventoryService.Get(player), fraction)
+	updateSpeed(player)
+	publish(player)
+	return lost
 end
 
 function InventoryService:Init() end

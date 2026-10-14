@@ -25,6 +25,8 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Log = require(Shared.Util.Log)
 
+local ClientSettings = require(script.Parent.Parent.UI.ClientSettings)
+
 local WorkerBeeController = {}
 
 local UPDATE_RANGE = 450 -- longe disso a abelha "voa" sem ser desenhada
@@ -245,6 +247,33 @@ local function spawnAll(template: Model)
 						table.insert(bees, bee)
 					end
 				end
+				-- Operárias contratadas pelo dono (atributo do servidor).
+				local hired: { Bee } = {}
+				local function syncHired()
+					local wanted = hive:GetAttribute("Contratadas")
+					wanted = if typeof(wanted) == "number" then math.clamp(wanted, 0, 20) else 0
+					while #hired < wanted do
+						local bee = newBee(template, folder, home, forward, false)
+						if not bee then
+							break
+						end
+						table.insert(hired, bee)
+						table.insert(bees, bee)
+					end
+					while #hired > wanted do
+						local bee = table.remove(hired) :: Bee
+						local index = table.find(bees, bee)
+						if index then
+							table.remove(bees, index)
+						end
+						local model = bee.Root.Parent
+						if model then
+							model:Destroy()
+						end
+					end
+				end
+				hive:GetAttributeChangedSignal("Contratadas"):Connect(syncHired)
+				syncHired()
 			end
 		end
 	end
@@ -357,10 +386,19 @@ function WorkerBeeController:Start()
 		refreshFlowers()
 		spawnAll(template)
 
+		local beesFolder = workspace:FindFirstChild("AbelhasOperarias")
+		local function applyQuality(settings)
+			if beesFolder then
+				beesFolder.Parent = if settings.Quality == "Baixa" then nil else workspace
+			end
+		end
+		ClientSettings.Changed:Connect(applyQuality)
+		applyQuality(ClientSettings.Get())
+
 		local mini = ready:FindFirstChild("AbelhaMini")
 		local hives = workspace:FindFirstChild("Mapa") and workspace.Mapa:FindFirstChild("Colmeias")
 		if mini and mini:IsA("Model") and hives then
-			local folder = workspace:FindFirstChild("AbelhasOperarias") or workspace
+			local folder = beesFolder or workspace
 			for _, hive in hives:GetChildren() do
 				local cells = hive:FindFirstChild("Celulas")
 				if cells then
@@ -379,6 +417,9 @@ function WorkerBeeController:Start()
 		RunService.RenderStepped:Connect(function(dt)
 			local now = os.clock()
 			local camera = workspace.CurrentCamera.CFrame.Position
+			if ClientSettings.Get().Quality == "Baixa" then
+				return -- qualidade baixa: as operárias ficam paradas e escondidas
+			end
 			stepCellBees(now, camera)
 			for _, bee in bees do
 				if (bee.Position - camera).Magnitude < UPDATE_RANGE then

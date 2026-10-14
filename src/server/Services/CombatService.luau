@@ -18,6 +18,7 @@ local Log = require(Shared.Util.Log)
 local Regions = require(Shared.Regions)
 local Remotes = require(Shared.Remotes)
 
+local BossService = require(script.Parent.BossService)
 local ClanService = require(script.Parent.ClanService)
 local HealthService = require(script.Parent.HealthService)
 local Notifier = require(script.Parent.Parent.Lib.Notifier)
@@ -59,6 +60,11 @@ local function attack(attacker: Player)
 	lastAttack[attacker] = now
 	HealthService.CancelSpawnProtection(attacker)
 	Remotes.Get("Effect"):FireAllClients("ataque", root.Position, attacker.UserId)
+
+	-- Vespa Gigante perto? O golpe vai nela (chefe tem prioridade).
+	if BossService.TryHit(attacker, root) then
+		return
+	end
 
 	-- Alvo: o jogador válido mais próximo à frente.
 	local look = root.CFrame.LookVector

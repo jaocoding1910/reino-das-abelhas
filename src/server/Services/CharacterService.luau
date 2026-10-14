@@ -17,10 +17,13 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local CombArt = require(Shared.CombArt)
 local Log = require(Shared.Util.Log)
 
 local AssetLibrary = require(script.Parent.Parent.Lib.AssetLibrary)
 local HiveService = require(script.Parent.HiveService)
+local InventoryService = require(script.Parent.InventoryService)
+local Notifier = require(script.Parent.Parent.Lib.Notifier)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 
 local CharacterService = {}
@@ -221,6 +224,61 @@ local function buildCosmetic(id: string, root: BasePart, parent: Instance)
 			cylinder
 		).Parent =
 			parent
+	elseif id == "Coroa" then
+		local gold = Color3.fromRGB(245, 190, 60)
+		local ring = beePart(
+			"Coroa",
+			Vector3.new(0.5, 1.7, 1.7),
+			CFrame.new(0, 1.45, -1.4) * CFrame.Angles(0, 0, math.rad(90)),
+			gold,
+			root,
+			cylinder
+		)
+		ring.Material = Enum.Material.Neon
+		ring.Parent = parent
+		for i = 0, 4 do
+			local angle = i * math.pi * 2 / 5
+			local spike = beePart(
+				"Ponta",
+				Vector3.new(0.22, 0.6, 0.22),
+				CFrame.new(math.cos(angle) * 0.72, 1.95, -1.4 + math.sin(angle) * 0.72),
+				gold,
+				root
+			)
+			spike.Material = Enum.Material.Neon
+			spike.Parent = parent
+		end
+	elseif id == "Aureola" then
+		local halo = beePart(
+			"Aureola",
+			Vector3.new(0.15, 2, 2),
+			CFrame.new(0, 2.4, -1.2) * CFrame.Angles(0, 0, math.rad(90)),
+			Color3.fromRGB(255, 245, 190),
+			root,
+			cylinder
+		)
+		halo.Material = Enum.Material.Neon
+		halo.Transparency = 0.2
+		halo.Parent = parent
+		local glow = Instance.new("PointLight")
+		glow.Color = Color3.fromRGB(255, 240, 180)
+		glow.Range = 8
+		glow.Brightness = 0.8
+		glow.Parent = halo
+	elseif id == "Laco" then
+		local pink = Color3.fromRGB(255, 120, 180)
+		for side = -1, 1, 2 do
+			beePart(
+				"Laco",
+				Vector3.new(0.7, 0.5, 0.25),
+				CFrame.new(side * 0.42, 1.35, -1.1) * CFrame.Angles(0, 0, math.rad(side * 25)),
+				pink,
+				root
+			).Parent =
+				parent
+		end
+		beePart("No", Vector3.new(0.3, 0.3, 0.3), CFrame.new(0, 1.35, -1.1), pink, root, Enum.PartType.Ball).Parent =
+			parent
 	elseif id == "Lenco" then
 		beePart(
 			"Lenco",
@@ -240,6 +298,47 @@ local function buildCosmetic(id: string, root: BasePart, parent: Instance)
 		).Parent =
 			parent
 	end
+end
+
+-- Carga visível --------------------------------------------------------------
+-- A abelha segura entre as patas o item mais valioso que carrega (todos veem
+-- em terceira pessoa). Só remonta quando o tipo muda.
+local function updateCargo(player: Player)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not character or not root then
+		return
+	end
+	local kind = CombArt.KindOf(InventoryService.Get(player))
+	if
+		character:GetAttribute("Carga") == kind and (kind == "" or character:FindFirstChild("CargaVisivel"))
+	then
+		return
+	end
+	character:SetAttribute("Carga", kind)
+	local old = character:FindFirstChild("CargaVisivel")
+	if old then
+		old:Destroy()
+	end
+	if kind == "" then
+		return
+	end
+	local model = CombArt.Build(kind, if kind == "Nectar" then 1.6 else 2.2)
+	model.Name = "CargaVisivel"
+	-- Embaixo da cabeça, entre as patas da frente; a face olha para trás (câmera).
+	local holdCF = root.CFrame * CFrame.new(0, -1.7, -1.3) * CFrame.Angles(math.rad(-15), 0, 0)
+	model:PivotTo(holdCF)
+	for _, part in model:GetDescendants() do
+		if part:IsA("BasePart") then
+			part.Anchored = false
+			part:SetAttribute("Abelha", true) -- não é escondida pelo hideAvatar
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = root
+			weld.Part1 = part
+			weld.Parent = part
+		end
+	end
+	model.Parent = character
 end
 
 -- Remonta os acessórios equipados (chamado ao nascer e ao trocar).
@@ -269,6 +368,8 @@ local function onCharacter(player: Player, character: Model)
 
 	hideAvatar(character, root)
 	buildBee(character, root)
+	character:SetAttribute("Carga", nil)
+	task.defer(updateCargo, player)
 	task.spawn(function()
 		-- Acessórios dependem do perfil carregado.
 		if PlayerDataService.WaitForProfile(player) and character.Parent then
@@ -306,6 +407,7 @@ end
 function CharacterService:Init() end
 
 function CharacterService:Start()
+	Notifier.OnChanged:Connect(updateCargo)
 	Players.PlayerAdded:Connect(onPlayer)
 	for _, player in Players:GetPlayers() do
 		onPlayer(player)

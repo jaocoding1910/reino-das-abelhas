@@ -31,6 +31,10 @@
 			}
 		},
 		"Workspace": {
+			"$properties": {
+				"StreamingEnabled": true,
+				"StreamingTargetRadius": 2048
+			},
 			"Terrain": {
 				"$properties": {
 					"Decoration": true
@@ -40,7 +44,12 @@
 		"Lighting": {
 			"$properties": {
 				"ClockTime": 14,
-				"Brightness": 2
+				"Brightness": 2,
+				"Technology": "Future",
+				"GlobalShadows": true,
+				"ShadowSoftness": 0.25,
+				"EnvironmentDiffuseScale": 1,
+				"EnvironmentSpecularScale": 1
 			}
 		},
 		"TextChatService": {
@@ -50,6 +59,11 @@
 					"HorizontalAlignment": "Right",
 					"VerticalAlignment": "Bottom"
 				}
+			}
+		},
+		"ReplicatedFirst": {
+			"Abertura": {
+				"$path": "src/first/Abertura.client.luau"
 			}
 		}
 	}

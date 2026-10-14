@@ -30,6 +30,14 @@ local EVENTS = {
 	"RequestRoyal", -- cliente → servidor: "Aceitar" ou "Receber" pedido da Rainha
 	"RequestClan", -- cliente → servidor: "Criar" (nome), "Entrar" (nome) ou "Sair"
 	"DailyReward", -- servidor → cliente: recompensa diária (sequência, mel)
+	"RequestShop", -- cliente → servidor: "Pocao" (id) ou "Troca" (id) no Besouro
+	"RequestPet", -- cliente → servidor: "Comprar"/"Equipar"/"Guardar" mascote
+	"RequestSettings", -- cliente → servidor: salvar configurações (tabela validada)
+	"RequestTutorial", -- cliente → servidor: "Concluir" ou "Pular"
+	"RequestRebirth", -- cliente → servidor: renascer
+	"RequestWorker", -- cliente → servidor: contratar operária
+	"RequestCode", -- cliente → servidor: resgatar código (texto)
+	"RaceUpdate", -- servidor → cliente: corrida (anel atual, tempo)
 }
 
 local FUNCTIONS = {

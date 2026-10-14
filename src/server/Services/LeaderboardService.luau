@@ -28,7 +28,7 @@ local GOLD = Color3.fromRGB(245, 190, 60)
 local WOOD = Color3.fromRGB(140, 95, 55)
 local DARK = Color3.fromRGB(70, 48, 30)
 
-type Row = { Name: string, Value: number, Level: number? }
+type Row = { Name: string, Value: number, Level: number?, Rebirths: number? }
 
 local frontRows: { TextLabel } = {}
 local backRows: { TextLabel } = {}
@@ -137,6 +137,9 @@ local function render(rows: { TextLabel }, data: { Row })
 		if entry then
 			local medal = if i == 1 then "🥇" elseif i == 2 then "🥈" elseif i == 3 then "🥉" else `{i}.`
 			local level = if entry.Level then `  · nv {entry.Level}` else ""
+			if entry.Rebirths and entry.Rebirths > 0 then
+				level ..= ` ⭐{entry.Rebirths}`
+			end
 			label.Text = `{medal}  {entry.Name}  —  {formatNumber(entry.Value)} mel{level}`
 		else
 			label.Text = ""
@@ -213,6 +216,7 @@ local function refreshServer()
 				Name = player.DisplayName,
 				Value = profile.HoneyEarned,
 				Level = (Levels.FromXP(profile.XP)),
+				Rebirths = profile.Rebirths,
 			})
 		end
 	end

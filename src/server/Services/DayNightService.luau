@@ -135,6 +135,14 @@ local function setNightGlow(isNight: boolean)
 	end
 end
 
+-- Pula para a noite (20h) ou para o dia (9h) — comandos de teste.
+function DayNightService.SetNight(night: boolean)
+	local dayLength = Config.DayNight.DayDuration
+	local nightLength = Config.DayNight.NightDuration
+	local elapsed = if night then dayLength + nightLength * (2 / 12) else ((9 - 6) / 12) * dayLength
+	cycleStart = os.clock() - elapsed
+end
+
 function DayNightService.IsNight(): boolean
 	return workspace:GetAttribute("IsNight") == true
 end

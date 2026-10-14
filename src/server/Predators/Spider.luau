@@ -150,6 +150,12 @@ local function buildWeb(parent: Instance, center: Vector3)
 	sheet.CFrame = CFrame.new(center) * CFrame.Angles(0, math.rad(90), 0)
 	sheet.Transparency = 0.8
 	sheet.Material = Enum.Material.ForceField
+	-- A teia não bloqueia a visão da aranha (raios de linha de visão).
+	for _, item in model:GetChildren() do
+		if item:IsA("BasePart") then
+			item.CanQuery = false
+		end
+	end
 	model.Parent = parent
 end
 

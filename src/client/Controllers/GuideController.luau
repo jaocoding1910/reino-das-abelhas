@@ -15,6 +15,7 @@
 	Só lê o estado que o servidor manda; não decide nada.
 ]]
 
+local CollectionService = game:GetService("CollectionService")
 local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -23,6 +24,8 @@ local RunService = game:GetService("RunService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Log = require(Shared.Util.Log)
 local Remotes = require(Shared.Remotes)
+
+local ClientSettings = require(script.Parent.Parent.UI.ClientSettings)
 
 local GuideController = {}
 
@@ -114,7 +117,35 @@ local function chooseTarget(from: Vector3): (Vector3?, string?)
 	if royal and royal.Ready and royal.Position then
 		return royal.Position, "Rainha"
 	end
+	-- Flor arco-íris no mapa: vale muito, a trilha leva até ela.
+	for _, flower in CollectionService:GetTagged("FlorArcoIris") do
+		if flower:IsA("BasePart") and not full then
+			return flower.Position, "🌈 Flor arco-íris"
+		end
+	end
 	if kind == "Nectar" or kind == "Mel" then
+		-- Chuva de pólen: prefere as flores douradas (3× néctar).
+		if workspace:GetAttribute("Evento") == "ChuvaDePolen" then
+			local golden = nil
+			local best = math.huge
+			for _, prompt in nectarPrompts do
+				local holder = prompt.Parent
+				if
+					prompt.Enabled
+					and holder
+					and holder:IsA("BasePart")
+					and holder:GetAttribute("Dourada") == true
+				then
+					local distance = (holder.Position - from).Magnitude
+					if distance < best then
+						golden, best = holder.Position, distance
+					end
+				end
+			end
+			if golden then
+				return golden, "🌟 Flor dourada"
+			end
+		end
 		return nearest(nectarPrompts, from, nil), "Néctar"
 	elseif kind == "Comb" then
 		return nearest(combPrompts, from, nil), "Favo"
@@ -151,7 +182,7 @@ local function build()
 	beam.FaceCamera = true
 	beam.Segments = 30
 	-- Mais grossa longe de você: de longe uma linha fina some (menos de 1 pixel).
-	beam.Width0 = 0.35
+	beam.Width0 = 0.12
 	beam.Width1 = 1
 	beam.Transparency = NumberSequence.new({
 		NumberSequenceKeypoint.new(0, 0.85),
@@ -189,7 +220,7 @@ local function attachToCharacter(character: Model)
 	end
 	local attachment = Instance.new("Attachment")
 	attachment.Name = "InicioTrilha"
-	attachment.Position = Vector3.new(0, -1.5, -2) -- um pouco à frente e abaixo: aparece na tela
+	attachment.Position = Vector3.new(0, -4, -10) -- à frente e abaixo: começa fina, longe do rosto
 	attachment.Orientation = Vector3.new(0, 0, 90)
 	attachment.Parent = root
 	rootAttachment = attachment
@@ -213,6 +244,11 @@ function GuideController:Start()
 		end
 	end)
 
+	enabled = ClientSettings.Get().Trail
+	ClientSettings.Changed:Connect(function(settings)
+		enabled = settings.Trail
+	end)
+
 	player.CharacterAdded:Connect(attachToCharacter)
 	if player.Character then
 		task.spawn(attachToCharacter, player.Character)
@@ -221,6 +257,7 @@ function GuideController:Start()
 	ContextActionService:BindAction("TrilhaDourada", function(_, inputState)
 		if inputState == Enum.UserInputState.Begin then
 			enabled = not enabled
+			ClientSettings.Set("Trail", enabled)
 		end
 		return Enum.ContextActionResult.Sink
 	end, true, Enum.KeyCode.G)

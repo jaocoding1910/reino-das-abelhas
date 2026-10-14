@@ -18,8 +18,10 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Log = require(Shared.Util.Log)
 
+local Regions = require(ReplicatedStorage:WaitForChild("Shared").Regions)
 local HealthService = require(script.Parent.HealthService)
 local InventoryService = require(script.Parent.InventoryService)
+local Dragonfly = require(script.Parent.Parent.Predators.Dragonfly)
 local Mantis = require(script.Parent.Parent.Predators.Mantis)
 local Spider = require(script.Parent.Parent.Predators.Spider)
 local WorldService = require(script.Parent.WorldService)
@@ -33,6 +35,12 @@ local hooks: Spider.Hooks = {
 	IsAlive = HealthService.IsAlive,
 	IsProtected = HealthService.IsSpawnProtected,
 	Damage = function(player, amount)
+		-- Segurança extra: nunca acerta quem já está em área protegida.
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if not root or Regions.IsProtected(Regions.Classify(root.Position)) then
+			return false
+		end
 		return HealthService.Damage(player, amount, "Predador")
 	end,
 	Slow = InventoryService.ApplySlow,
@@ -79,18 +87,35 @@ function PredatorService:Start()
 		mantisCount += 1
 	end
 
+	-- Libélulas no lago, espalhadas no círculo.
+	local dragonflies = Config.Predators.Libelula.Count
+	for i = 1, dragonflies do
+		table.insert(predators, {
+			Predator = Dragonfly.new(map.LakeCenter, (i - 1) * math.pi * 2 / dragonflies, folder, hooks),
+			Settings = Config.Predators.Libelula,
+		})
+	end
+
 	RunService.Heartbeat:Connect(function(dt)
 		local night = workspace:GetAttribute("IsNight") == true
+		local fog = workspace:GetAttribute("Clima") == "Neblina"
 		for _, entry in predators do
 			local settings = entry.Settings
 			local activity = if night
 				then settings.NightActivityMultiplier
 				else settings.DayActivityMultiplier
+			-- Neblina: enxergam menos.
+			if fog then
+				activity *= Config.Weather.FogPredatorVision
+			end
 			entry.Predator:Update(dt, activity)
 		end
 	end)
 
-	Log.info("PredatorService", `{#predators - mantisCount} aranhas e {mantisCount} louva-a-deus no bosque`)
+	Log.info(
+		"PredatorService",
+		`{#predators - mantisCount - dragonflies} aranhas, {mantisCount} louva-a-deus e {dragonflies} libélulas`
+	)
 end
 
 return PredatorService

@@ -53,7 +53,12 @@ local function part(name: string, size: Vector3, color: Color3, parent: Instance
 	p.Material = Enum.Material.SmoothPlastic
 	p.TopSurface = Enum.SurfaceType.Smooth
 	p.BottomSurface = Enum.SurfaceType.Smooth
-	if shape then
+	if shape == Enum.PartType.Ball and (size.X ~= size.Y or size.Y ~= size.Z) then
+		-- Bola no Roblox é sempre esfera perfeita: para oval, usa malha de esfera.
+		local mesh = Instance.new("SpecialMesh")
+		mesh.MeshType = Enum.MeshType.Sphere
+		mesh.Parent = p
+	elseif shape then
 		p.Shape = shape
 	end
 	p.Parent = parent

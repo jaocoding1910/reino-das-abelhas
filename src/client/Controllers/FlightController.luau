@@ -5,6 +5,9 @@
 	- Velocidade suave (aceleração), subir/descer, teto de altitude.
 	- Inclinação do corpo nas curvas (bank) e para a frente ao acelerar.
 	- Arrancada (Shift / botão "Arrancar") que gasta fôlego e recupera parada.
+	- Voar de lado: A/D deslizam para os lados (sem virar a câmera).
+	- Pirueta lateral: toque DUAS vezes rápido em A ou D. A abelha dá um giro
+	  de 360° e um "dash" para o lado (gasta fôlego; ótimo para fugir do bote).
 	- A carga, as melhorias, a especialidade e a teia mudam a velocidade:
 	  o servidor define o atributo "SpeedMultiplier" no Player.
 
@@ -13,6 +16,7 @@
 ]]
 
 local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
@@ -29,7 +33,32 @@ FlightController.State = {
 	Bank = 0, -- graus de inclinação lateral atual
 	Stamina = Config.Flight.StaminaMax,
 	Sprinting = false,
+	StaminaMax = Config.Flight.StaminaMax,
+	BoostUntil = 0,
+	BoostMultiplier = 1,
+	RollStart = 0, -- os.clock() do início da pirueta (0 = nenhuma)
+	RollDirection = 0, -- -1 esquerda, 1 direita
 }
+
+-- Pirueta lateral (duplo toque em A/D ou chamada direta).
+function FlightController.Roll(direction: number): boolean
+	local state = FlightController.State
+	local settings = Config.Flight
+	local now = os.clock()
+	if now - state.RollStart < settings.RollCooldown or state.Stamina < settings.RollStaminaCost then
+		return false
+	end
+	state.Stamina -= settings.RollStaminaCost
+	state.RollStart = now
+	state.RollDirection = if direction < 0 then -1 else 1
+	return true
+end
+
+-- Impulso temporário (anéis): velocidade × multiplier por `duration` segundos.
+function FlightController.Boost(multiplier: number, duration: number)
+	FlightController.State.BoostMultiplier = multiplier
+	FlightController.State.BoostUntil = os.clock() + duration
+end
 
 local player = Players.LocalPlayer
 local connection: RBXScriptConnection? = nil
@@ -110,6 +139,16 @@ local function setup(character: Model)
 		local speed = flight.BaseSpeed * (if typeof(multiplier) == "number" then multiplier else 1)
 		local moving = humanoid.MoveDirection.Magnitude > 0.1
 
+		-- Fôlego máximo vem do servidor (melhoria Fôlego).
+		local maxAttribute = player:GetAttribute("StaminaMax")
+		state.StaminaMax = if typeof(maxAttribute) == "number" then maxAttribute else flight.StaminaMax
+		-- Impulso dos anéis, diminuindo suave até acabar.
+		local boostLeft = state.BoostUntil - now
+		if boostLeft > 0 then
+			local fade = math.clamp(boostLeft / 0.6, 0, 1)
+			speed *= 1 + (state.BoostMultiplier - 1) * fade
+		end
+
 		-- Arrancada com fôlego.
 		local sprinting = InputController.IsSprinting() and moving and state.Stamina > 0
 		if sprinting then
@@ -117,11 +156,21 @@ local function setup(character: Model)
 			state.Stamina = math.max(0, state.Stamina - flight.StaminaDrainPerSecond * dt)
 			lastSprintTime = now
 		elseif now - lastSprintTime > flight.StaminaRegenDelay then
-			state.Stamina = math.min(flight.StaminaMax, state.Stamina + flight.StaminaRegenPerSecond * dt)
+			state.Stamina = math.min(state.StaminaMax, state.Stamina + flight.StaminaRegenPerSecond * dt)
 		end
 		state.Sprinting = sprinting
 
 		local horizontal = humanoid.MoveDirection * speed
+		-- Pirueta: empurrão lateral que some suave.
+		local rollT = (now - state.RollStart) / flight.RollDuration
+		local rolling = state.RollStart > 0 and rollT < 1
+		if rolling then
+			local right = workspace.CurrentCamera.CFrame.RightVector
+			local side = Vector3.new(right.X, 0, right.Z)
+			if side.Magnitude > 0.01 then
+				horizontal += side.Unit * state.RollDirection * flight.RollSpeed * (1 - rollT)
+			end
+		end
 		local vertical = InputController.GetVertical() * flight.VerticalSpeed
 		local target = Vector3.new(horizontal.X, vertical, horizontal.Z)
 		if root.Position.Y >= flight.MaxAltitude and target.Y > 0 then
@@ -154,8 +203,10 @@ local function setup(character: Model)
 			local pitchTarget = math.clamp(-forward * 10 + current.Y / flight.VerticalSpeed * 12, -18, 18)
 			pitch += (pitchTarget - pitch) * math.clamp(dt * 4, 0, 1)
 
+			-- Na pirueta o corpo gira 360° em volta do eixo de voo.
+			local spin = if rolling then -state.RollDirection * rollT * math.pi * 2 else 0
 			orientation.CFrame = CFrame.lookAt(Vector3.zero, flat)
-				* CFrame.Angles(math.rad(pitch), 0, math.rad(bank))
+				* CFrame.Angles(math.rad(pitch), 0, math.rad(bank) + spin)
 		end
 		state.Bank = bank
 	end)
@@ -163,7 +214,25 @@ local function setup(character: Model)
 	humanoid.Died:Connect(stop)
 end
 
-function FlightController:Init() end
+function FlightController:Init()
+	-- Duplo toque em A ou D = pirueta para aquele lado.
+	local lastTap: { [Enum.KeyCode]: number } = {}
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if processed then
+			return
+		end
+		local key = input.KeyCode
+		if key == Enum.KeyCode.A or key == Enum.KeyCode.D then
+			local now = os.clock()
+			if now - (lastTap[key] or 0) < Config.Flight.RollDoubleTap then
+				lastTap[key] = 0
+				FlightController.Roll(if key == Enum.KeyCode.A then -1 else 1)
+			else
+				lastTap[key] = now
+			end
+		end
+	end)
+end
 
 function FlightController:Start()
 	player.CharacterAdded:Connect(setup)

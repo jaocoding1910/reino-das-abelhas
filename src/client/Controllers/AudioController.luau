@@ -23,6 +23,7 @@ local Config = require(Shared.Config)
 local Log = require(Shared.Util.Log)
 local Remotes = require(Shared.Remotes)
 
+local ClientSettings = require(script.Parent.Parent.UI.ClientSettings)
 local FlightController = require(script.Parent.FlightController)
 
 local AudioController = {}
@@ -79,6 +80,7 @@ function AudioController.Play(name: string)
 	if sound then
 		-- Pequena variação de tom para não cansar o ouvido.
 		sound.PlaybackSpeed = 0.94 + math.random() * 0.12
+		sound.Volume = (VOLUMES[name] or 0.5) * ClientSettings.Get().Sfx
 		sound:Play()
 	end
 end
@@ -131,17 +133,21 @@ function AudioController:Start()
 		local wings = sounds.Asas
 		if wings then
 			local speed = FlightController.State.SpeedFraction
-			local target = VOLUMES.Asas * (0.35 + 0.65 * math.clamp(speed, 0, 1.5) / 1.5)
+			local target = VOLUMES.Asas
+				* (0.35 + 0.65 * math.clamp(speed, 0, 1.5) / 1.5)
+				* ClientSettings.Get().Sfx
 			wings.Volume += (target - wings.Volume) * k
 			wings.PlaybackSpeed = 0.9 + 0.35 * math.clamp(speed, 0, 1.5) / 1.5
 		end
 		local night = workspace:GetAttribute("IsNight") == true
+		local settings = ClientSettings.Get()
+		local music = if settings.Music then (tonumber(settings.MusicLevel) or 0.6) / 0.6 else 0
 		local day, nightSound = sounds.AmbienteDia, sounds.AmbienteNoite
 		if day then
-			day.Volume += ((if night then 0 else VOLUMES.AmbienteDia) - day.Volume) * k * 0.3
+			day.Volume += ((if night then 0 else VOLUMES.AmbienteDia * music) - day.Volume) * k * 0.3
 		end
 		if nightSound then
-			nightSound.Volume += ((if night then VOLUMES.AmbienteNoite else 0) - nightSound.Volume) * k * 0.3
+			nightSound.Volume += ((if night then VOLUMES.AmbienteNoite * music else 0) - nightSound.Volume) * k * 0.3
 		end
 	end)
 	Log.info("AudioController", "pronto")

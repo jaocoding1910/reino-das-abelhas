@@ -6,6 +6,7 @@
 	- Painel de colônias (tecla 3 / botão "Clã"): fundar com nome, entrar
 	  numa colônia do servidor, ver membros e bônus, sair.
 	- Calendário da recompensa diária (7 dias) quando o servidor avisa.
+	- Loja do Besouro mercador: poções e trocas.
 
 	Como o resto do HUD: só mostra e pede. Todas as regras ficam no servidor.
 ]]
@@ -344,6 +345,141 @@ function SocialController.ToggleClan()
 	end
 end
 
+-- Besouro mercador ---------------------------------------------------------------
+
+local function buildShop(gui: ScreenGui)
+	local panel = W.Panel(
+		"LojaBesouro",
+		UDim2.fromOffset(520, 430),
+		UDim2.fromScale(0.5, 0.5),
+		Vector2.new(0.5, 0.5),
+		gui
+	)
+	panel.Visible = false
+	panel.ZIndex = 6
+	local stroke = panel:FindFirstChildOfClass("UIStroke")
+	if stroke then
+		stroke.Color = Color3.fromRGB(110, 210, 160)
+		stroke.Thickness = 3
+	end
+	W.Text(
+		"Titulo",
+		"🐞 Seu Besouro · poções e trocas",
+		UDim2.new(1, -40, 0, 28),
+		UDim2.fromOffset(20, 12),
+		panel,
+		{
+			TextColor3 = Color3.fromRGB(150, 240, 190),
+		}
+	)
+	W.Text(
+		"Secao1",
+		"Poções (efeito por alguns minutos)",
+		UDim2.new(1, -40, 0, 18),
+		UDim2.fromOffset(20, 48),
+		panel,
+		{
+			TextColor3 = Theme.Colors.TextMuted,
+		}
+	)
+	refs.PotionRows = {}
+	for i = 1, 3 do
+		local row = Instance.new("Frame")
+		row.Size = UDim2.new(1, -40, 0, 50)
+		row.Position = UDim2.fromOffset(20, 70 + (i - 1) * 56)
+		row.BackgroundColor3 = Color3.fromRGB(45, 37, 28)
+		row.BackgroundTransparency = 0.2
+		W.Corner(row, 8)
+		row.Parent = panel
+		local icon = W.Text("Icone", "", UDim2.fromOffset(34, 34), UDim2.fromOffset(8, 8), row, {
+			TextXAlignment = Enum.TextXAlignment.Center,
+		})
+		local name = W.Text("Nome", "", UDim2.new(1, -200, 0, 20), UDim2.fromOffset(50, 5), row)
+		local desc = W.Text("Desc", "", UDim2.new(1, -200, 0, 16), UDim2.fromOffset(50, 28), row, {
+			Font = Theme.FontRegular,
+			TextColor3 = Theme.Colors.TextMuted,
+		})
+		local buy = W.Button("Comprar", "", UDim2.fromOffset(136, 34), UDim2.new(1, -144, 0, 8), row)
+		buy.Activated:Connect(function()
+			local id = row:GetAttribute("Id")
+			if typeof(id) == "string" then
+				Remotes.Get("RequestShop"):FireServer("Pocao", id)
+			end
+		end)
+		refs.PotionRows[i] = { Row = row, Icon = icon, Name = name, Desc = desc, Buy = buy }
+	end
+	W.Text(
+		"Secao2",
+		"Trocas (usa os favos da sua carga)",
+		UDim2.new(1, -40, 0, 18),
+		UDim2.fromOffset(20, 242),
+		panel,
+		{
+			TextColor3 = Theme.Colors.TextMuted,
+		}
+	)
+	refs.TradeRows = {}
+	for i = 1, 3 do
+		local row = Instance.new("Frame")
+		row.Size = UDim2.new(1, -40, 0, 34)
+		row.Position = UDim2.fromOffset(20, 264 + (i - 1) * 40)
+		row.BackgroundTransparency = 1
+		row.Parent = panel
+		local text = W.Text("Texto", "", UDim2.new(1, -130, 1, -8), UDim2.fromOffset(4, 4), row, {
+			Font = Theme.FontRegular,
+		})
+		local trade = W.Button("Trocar", "Trocar", UDim2.fromOffset(110, 30), UDim2.new(1, -112, 0, 2), row)
+		trade.Activated:Connect(function()
+			local id = row:GetAttribute("Id")
+			if typeof(id) == "string" then
+				Remotes.Get("RequestShop"):FireServer("Troca", id)
+			end
+		end)
+		refs.TradeRows[i] = { Row = row, Text = text, Button = trade }
+	end
+	closeButton(panel, function()
+		panel.Visible = false
+		ProximityPromptService.Enabled = true
+	end)
+	refs.ShopPanel = panel
+end
+
+local function renderShop()
+	local panel: Frame = refs.ShopPanel
+	if not panel.Visible or not state or not state.Shop then
+		return
+	end
+	local honey = state.Honey or 0
+	for i, potion in state.Shop.Potions do
+		local row = refs.PotionRows[i]
+		if row then
+			row.Row:SetAttribute("Id", potion.Id)
+			row.Icon.Text = potion.Icon
+			row.Name.Text = potion.DisplayName
+			local minutes = math.floor(potion.Duration / 60)
+			row.Desc.Text = if potion.Remaining > 0
+				then `{potion.Description} · ativa ({math.ceil(potion.Remaining / 60)} min)`
+				else `{potion.Description} · {minutes} min`
+			local afford = honey >= potion.Price
+			row.Buy.Text = if potion.Remaining > 0
+				then `+tempo · {potion.Price}`
+				else `Comprar · {potion.Price}`
+			row.Buy.BackgroundColor3 = if afford then Theme.Colors.Gold else Color3.fromRGB(60, 50, 38)
+			row.Buy.TextColor3 = if afford then Theme.Colors.Panel else Theme.Colors.TextMuted
+		end
+	end
+	for i, trade in state.Shop.Trades do
+		local row = refs.TradeRows[i]
+		if row then
+			row.Row:SetAttribute("Id", trade.Id)
+			row.Text.Text = trade.Text
+			row.Text.TextColor3 = if trade.Can then Theme.Colors.Text else Theme.Colors.TextMuted
+			row.Button.BackgroundColor3 = if trade.Can then Theme.Colors.Gold else Color3.fromRGB(60, 50, 38)
+			row.Button.TextColor3 = if trade.Can then Theme.Colors.Panel else Theme.Colors.TextMuted
+		end
+	end
+end
+
 -- Recompensa diária --------------------------------------------------------------
 
 local function buildDaily(gui: ScreenGui)
@@ -437,6 +573,7 @@ function SocialController:Init()
 	buildQueenDialog(gui)
 	buildClanPanel(gui)
 	buildDaily(gui)
+	buildShop(gui)
 	gui.Parent = player:WaitForChild("PlayerGui")
 end
 
@@ -445,6 +582,7 @@ function SocialController:Start()
 		state = newState
 		renderQueen()
 		renderClan()
+		renderShop()
 	end)
 	task.spawn(function()
 		local ok, initial = pcall(function()
@@ -460,6 +598,18 @@ function SocialController:Start()
 	task.spawn(function()
 		while true do
 			task.wait(0.5)
+			local shopPanel: Frame = refs.ShopPanel
+			if shopPanel.Visible then
+				local character = player.Character
+				local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+				local shop = state and state.Shop
+				if
+					not root or (shop and shop.Position and (root.Position - shop.Position).Magnitude > 50)
+				then
+					shopPanel.Visible = false
+					ProximityPromptService.Enabled = true
+				end
+			end
 			local panel: Frame = refs.QueenPanel
 			if panel.Visible then
 				local character = player.Character
@@ -477,7 +627,13 @@ function SocialController:Start()
 
 	-- Abrir a conversa ao acionar o aviso da Rainha.
 	ProximityPromptService.PromptTriggered:Connect(function(prompt, who)
-		if who == player and prompt:GetAttribute("Rainha") then
+		if who == player and prompt:GetAttribute("Mercador") then
+			local panel: Frame = refs.ShopPanel
+			panel.Visible = true
+			ProximityPromptService.Enabled = false
+			popIn(panel)
+			renderShop()
+		elseif who == player and prompt:GetAttribute("Rainha") then
 			local panel: Frame = refs.QueenPanel
 			panel.Visible = true
 			-- Esconde os avisos (E) enquanto conversa: não ficam por cima do painel.

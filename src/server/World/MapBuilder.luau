@@ -44,6 +44,7 @@ export type MapData = {
 	Combs: { Model }, -- favos coletáveis (atributo Rarity)
 	SpiderSpots: { Vector3 }, -- pés das árvores do bosque (teias)
 	MantisSpots: { Vector3 }, -- topo dos cogumelos (poleiro do louva-a-deus)
+	LakeCenter: Vector3, -- lago das libélulas
 	RoyalPosition: Vector3,
 	DefaultSpawn: CFrame,
 }
@@ -98,11 +99,29 @@ local function ball(name, diameter, center: Vector3, color, parent): Part
 	return part
 end
 
--- Posição aleatória num anel entre minR e maxR.
+-- Lugares reservados (caverna e lago): nada é sorteado em cima deles.
+local function isReserved(position: Vector3): boolean
+	for _, place in { Config.Places.Cave, Config.Places.Lake, Config.SkyIsland } do
+		local delta = Vector3.new(position.X - place.Position.X, 0, position.Z - place.Position.Z)
+		if delta.Magnitude < place.Radius + 18 then
+			return true
+		end
+	end
+	return false
+end
+
+-- Posição aleatória num anel entre minR e maxR (fora dos lugares reservados).
 local function ringPosition(rng: Random, minR: number, maxR: number): Vector3
-	local angle = rng:NextNumber(0, math.pi * 2)
-	local radius = rng:NextNumber(minR, maxR)
-	return Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+	local position = Vector3.zero
+	for _ = 1, 12 do
+		local angle = rng:NextNumber(0, math.pi * 2)
+		local radius = rng:NextNumber(minR, maxR)
+		position = Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+		if not isReserved(position) then
+			break
+		end
+	end
+	return position
 end
 
 local function sparkles(parent: Instance, color: Color3, rate: number, size: number): ParticleEmitter
@@ -195,8 +214,10 @@ end
 
 local function buildLighting()
 	local atmosphere = ensure("Atmosphere", Lighting) :: Atmosphere
-	atmosphere.Density = 0.32
-	atmosphere.Haze = 1.4
+	-- Névoa leve: com densidade alta tudo depois de ~800 studs some no céu
+	-- (as montanhas do horizonte ficavam invisíveis).
+	atmosphere.Density = 0.16
+	atmosphere.Haze = 0.9
 	atmosphere.Glare = 0.4
 	atmosphere.Color = Color3.fromRGB(255, 228, 190)
 	atmosphere.Decay = Color3.fromRGB(110, 150, 220)
@@ -215,17 +236,17 @@ local function buildLighting()
 	-- Fundo levemente desfocado: dá cara de "cena de filme" sem atrapalhar o perto.
 	local depth = ensure("DepthOfFieldEffect", Lighting) :: DepthOfFieldEffect
 	depth.FarIntensity = 0.18
-	depth.FocusDistance = 80
-	depth.InFocusRadius = 90
+	depth.FocusDistance = 120
+	depth.InFocusRadius = 160
 	depth.NearIntensity = 0
 
 	local rays = ensure("SunRaysEffect", Lighting) :: SunRaysEffect
-	rays.Intensity = 0.08
+	rays.Intensity = 0.12
 	rays.Spread = 0.6
 
 	local color = ensure("ColorCorrectionEffect", Lighting) :: ColorCorrectionEffect
-	color.Saturation = 0.15
-	color.Contrast = 0.08
+	color.Saturation = 0.24 -- cores vivas da referência (mel, verde, céu azul)
+	color.Contrast = 0.1
 	color.TintColor = Color3.fromRGB(255, 248, 235)
 
 	local clouds = ensure("Clouds", workspace.Terrain) :: Clouds
@@ -236,6 +257,12 @@ end
 
 local function buildTerrain(rng: Random)
 	local terrain = workspace.Terrain
+	-- Água azul-turquesa com reflexo (lagos e cachoeiras da referência).
+	terrain.WaterColor = Color3.fromRGB(60, 160, 190)
+	terrain.WaterTransparency = 0.55
+	terrain.WaterReflectance = 0.6
+	terrain.WaterWaveSize = 0.12
+	terrain.WaterWaveSpeed = 8
 	terrain:FillBlock(CFrame.new(0, -4, 0), Vector3.new(2048, 8, 2048), Enum.Material.Grass)
 	-- Manchas de grama alta e terra dão textura ao chão.
 	for _ = 1, 40 do
@@ -641,6 +668,204 @@ local function buildCrystal(parent: Instance, base: Vector3, rng: Random)
 	model.Parent = parent
 end
 
+-- Caverna de Cristal: domo de pedra escavado no terreno, cristais acesos dentro.
+-- Retorna pontos para favos (dentro da caverna).
+local function buildCave(parent: Instance): { Vector3 }
+	local info = Config.Places.Cave
+	local center = info.Position
+	local r = info.Radius
+	local terrain = workspace.Terrain
+	terrain:FillBall(center + Vector3.new(0, 6, 0), r, Enum.Material.Slate)
+	terrain:FillBall(center + Vector3.new(0, 8, 0), r - 7, Enum.Material.Air)
+	-- Chão plano dentro e entrada virada para o centro do mapa.
+	terrain:FillBlock(
+		CFrame.new(center + Vector3.new(0, -2, 0)),
+		Vector3.new(r * 2 - 10, 4, r * 2 - 10),
+		Enum.Material.Slate
+	)
+	local toCenter = Vector3.new(-center.X, 0, -center.Z).Unit
+	local door = center + toCenter * (r - 3) + Vector3.new(0, 10, 0)
+	terrain:FillBlock(CFrame.lookAt(door, door + toCenter), Vector3.new(22, 18, 20), Enum.Material.Air)
+
+	local model = Instance.new("Model")
+	model.Name = "CavernaDeCristal"
+	local rng = Random.new(Config.Map.Seed + 9)
+	local spots = {}
+	for i = 1, 14 do
+		local angle = (i / 14) * math.pi * 2 + rng:NextNumber(-0.2, 0.2)
+		local radius = rng:NextNumber(10, r - 12)
+		local base = center + Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+		local height = rng:NextNumber(5, 13)
+		local color = if i % 3 == 0 then Color3.fromRGB(90, 200, 255) else Color3.fromRGB(170, 90, 255)
+		local shard = newPart(
+			"Cristal",
+			Vector3.new(height, rng:NextNumber(1.6, 3), rng:NextNumber(1.6, 3)),
+			CFrame.new(base + Vector3.new(0, height / 2 - 0.5, 0))
+				* CFrame.Angles(
+					rng:NextNumber(-0.3, 0.3),
+					rng:NextNumber(0, 6),
+					math.rad(90) + rng:NextNumber(-0.3, 0.3)
+				),
+			color,
+			model
+		)
+		shard.Material = Enum.Material.Neon
+		shard.Transparency = 0.15
+		if i % 2 == 0 then
+			light(shard, color, 22, 1.4)
+		end
+		if i % 4 == 1 then
+			table.insert(spots, base + Vector3.new(0, 3, 0))
+		end
+	end
+	-- Brilho no ar.
+	local mote =
+		newPart("Brilho", Vector3.one, CFrame.new(center + Vector3.new(0, 12, 0)), Color3.new(1, 1, 1), model)
+	mote.Transparency = 1
+	mote.CanCollide = false
+	local dust = sparkles(mote, Color3.fromRGB(200, 160, 255), 8, 0.4)
+	dust.SpreadAngle = Vector2.new(180, 180)
+	-- Placa na entrada.
+	local signPost = newPart(
+		"Placa",
+		Vector3.new(1, 1, 1),
+		CFrame.new(door + toCenter * 14 - Vector3.new(0, 4, 0)),
+		Color3.new(),
+		model
+	)
+	signPost.Transparency = 1
+	signPost.CanCollide = false
+	addLabel(signPost, "Caverna de Cristal", "favos raros lá dentro", Color3.fromRGB(190, 140, 255)).MaxDistance =
+		220
+	model.Parent = parent
+	return spots
+end
+
+-- Lago das Libélulas: água, vitórias-régias e juncos. Retorna pontos para favos.
+local function buildLake(parent: Instance): { Vector3 }
+	local info = Config.Places.Lake
+	local center = info.Position
+	local terrain = workspace.Terrain
+	terrain:FillCylinder(CFrame.new(center + Vector3.new(0, -3, 0)), 6, info.Radius, Enum.Material.Water)
+	terrain:FillCylinder(CFrame.new(center + Vector3.new(0, -7, 0)), 2, info.Radius, Enum.Material.Mud)
+
+	local model = Instance.new("Model")
+	model.Name = "LagoDasLibelulas"
+	local rng = Random.new(Config.Map.Seed + 21)
+	local spots = {}
+	for i = 1, 12 do
+		local angle = rng:NextNumber(0, math.pi * 2)
+		local radius = rng:NextNumber(8, info.Radius - 10)
+		local position = center + Vector3.new(math.cos(angle) * radius, 0.2, math.sin(angle) * radius)
+		local size = rng:NextNumber(5, 9)
+		local pad = newPart(
+			"VitoriaRegia",
+			Vector3.new(0.4, size, size),
+			CFrame.new(position) * CFrame.Angles(0, rng:NextNumber(0, 6), math.rad(90)),
+			Color3.fromRGB(70, 150, 70),
+			model
+		)
+		pad.Shape = Enum.PartType.Cylinder
+		if i % 3 == 0 then
+			local bloom = ball(
+				"FlorDoLago",
+				1.6,
+				position + Vector3.new(0, 0.8, 0),
+				Color3.fromRGB(255, 150, 200),
+				model
+			)
+			bloom.Material = Enum.Material.Neon
+			bloom.CanCollide = false
+		end
+		if i % 4 == 0 then
+			table.insert(spots, position + Vector3.new(0, 2.5, 0))
+		end
+	end
+	for i = 1, 40 do
+		local angle = (i / 40) * math.pi * 2 + rng:NextNumber(-0.05, 0.05)
+		local radius = info.Radius + rng:NextNumber(-2, 4)
+		local base = center + Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+		local height = rng:NextNumber(4, 9)
+		local reed = newPart(
+			"Junco",
+			Vector3.new(0.35, height, 0.35),
+			CFrame.new(base + Vector3.new(0, height / 2, 0))
+				* CFrame.Angles(rng:NextNumber(-0.15, 0.15), 0, rng:NextNumber(-0.15, 0.15)),
+			Color3.fromRGB(95, 140, 60),
+			model
+		)
+		reed.CanCollide = false
+		if i % 3 == 0 then
+			newPart(
+				"Taboa",
+				Vector3.new(0.6, 1.4, 0.6),
+				reed.CFrame * CFrame.new(0, height / 2 - 0.4, 0),
+				Color3.fromRGB(110, 70, 40),
+				model
+			).CanCollide =
+				false
+		end
+	end
+	local signPost =
+		newPart("Placa", Vector3.one, CFrame.new(center + Vector3.new(0, 18, 0)), Color3.new(), model)
+	signPost.Transparency = 1
+	signPost.CanCollide = false
+	addLabel(signPost, "Lago das Libélulas", "cuidado com os rasantes!", Color3.fromRGB(110, 200, 255)).MaxDistance =
+		260
+	model.Parent = parent
+	return spots
+end
+
+-- Ilha nas Nuvens: terreno flutuante com flores especiais. Retorna os néctares.
+local function buildSkyIsland(parent: Instance, rng: Random): { BasePart }
+	local info = Config.SkyIsland
+	local center = info.Position
+	local r = info.Radius
+	local terrain = workspace.Terrain
+	-- Base de pedra afinando para baixo e grama em cima (topo em center.Y).
+	terrain:FillCylinder(CFrame.new(center + Vector3.new(0, -6, 0)), 10, r, Enum.Material.Rock)
+	terrain:FillBall(center + Vector3.new(0, -18, 0), r * 0.75, Enum.Material.Rock)
+	terrain:FillBall(center + Vector3.new(0, -36, 0), r * 0.4, Enum.Material.Rock)
+	terrain:FillCylinder(CFrame.new(center + Vector3.new(0, -1.5, 0)), 3, r, Enum.Material.Grass)
+
+	local model = Instance.new("Model")
+	model.Name = "IlhaNasNuvens"
+	-- Nuvens fofas em volta.
+	for i = 1, 16 do
+		local angle = (i / 16) * math.pi * 2
+		local radius = r + rng:NextNumber(-6, 10)
+		local size = rng:NextNumber(10, 22)
+		local cloud = ball(
+			"Nuvem",
+			size,
+			center + Vector3.new(math.cos(angle) * radius, rng:NextNumber(-14, -4), math.sin(angle) * radius),
+			Color3.fromRGB(250, 250, 255),
+			model
+		)
+		cloud.Transparency = 0.15
+		cloud.CanCollide = false
+		cloud.CastShadow = false
+	end
+	local signPost =
+		newPart("Placa", Vector3.one, CFrame.new(center + Vector3.new(0, 30, 0)), Color3.new(), model)
+	signPost.Transparency = 1
+	signPost.CanCollide = false
+	addLabel(signPost, "Ilha nas Nuvens", "flores com 2× néctar", Color3.fromRGB(150, 220, 255)).MaxDistance =
+		500
+	model.Parent = parent
+
+	local centers = {}
+	for i = 1, info.Flowers do
+		local angle = (i / info.Flowers) * math.pi * 2 + rng:NextNumber(-0.2, 0.2)
+		local radius = rng:NextNumber(8, r - 10)
+		local base = center + Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+		local nectar = buildFlower(parent, base, rng)
+		nectar:SetAttribute("Nuvem", true)
+		table.insert(centers, nectar)
+	end
+	return centers
+end
+
 -- Colmeia Real: palácio dourado num platô com cachoeiras ------------------------
 
 local GOLD = Color3.fromRGB(240, 185, 60)
@@ -748,6 +973,8 @@ local function buildRoyalHive(parent: Instance): { Vector3 }
 		spray.Speed = NumberRange.new(3, 6)
 	end
 
+	-- Marco de navegação: sempre enviado a todos (não some com a distância).
+	model.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 	model.Parent = parent
 	return spots
 end
@@ -1128,13 +1355,21 @@ local function decorateTrunk(parent: Instance, plotCF: CFrame, trunkCenter: Vect
 end
 
 -- Ponte de tábuas entre duas árvores-colmeia vizinhas.
-local function bridge(parent: Instance, from: Vector3, to: Vector3)
-	local y = Config.Map.BridgeHeight
-	local a = Vector3.new(from.X, y, from.Z)
-	local b = Vector3.new(to.X, y, to.Z)
+-- Ponte de corda entre dois pontos. Sem alturas: usa Config.Map.BridgeHeight
+-- (pontes entre as árvores-colmeia). `inset` = quanto recua de cada ponta.
+local function bridge(
+	parent: Instance,
+	from: Vector3,
+	to: Vector3,
+	yFrom: number?,
+	yTo: number?,
+	inset: number?
+)
+	local a = Vector3.new(from.X, yFrom or Config.Map.BridgeHeight, from.Z)
+	local b = Vector3.new(to.X, yTo or Config.Map.BridgeHeight, to.Z)
 	local direction = (b - a).Unit
-	a += direction * 40
-	b -= direction * 40
+	a += direction * (inset or 40)
+	b -= direction * (inset or 40)
 	local length = (b - a).Magnitude
 	if length <= 0 then
 		return
@@ -1173,6 +1408,425 @@ local function bridge(parent: Instance, from: Vector3, to: Vector3)
 		fairyLights(model, bulbs)
 	end
 	model.Parent = parent
+end
+
+-- Paisagem da referência ------------------------------------------------------
+-- O chão era uma planície. Agora o vale tem: cordilheira no horizonte (limite
+-- visual do mundo e fundo para o castelo), colinas no pé das montanhas e
+-- dois grupos de penhascos com casinhas de favo, lanternas, pontes de corda
+-- e cachoeiras — a silhueta das imagens 01 e 02. Tudo fica FORA dos anéis
+-- usados pelo jogo (colmeias, campo, bosque, caverna, lago e Colmeia Real).
+
+local function angleDelta(a: number, b: number): number
+	local d = (b - a) % (2 * math.pi)
+	if d > math.pi then
+		d -= 2 * math.pi
+	end
+	return d
+end
+local HUT_WAX = Color3.fromRGB(246, 206, 110)
+local HUT_ROOF = Color3.fromRGB(176, 104, 40)
+local LANTERN = Color3.fromRGB(255, 205, 110)
+
+-- Cachoeira: lâmina translúcida + gotas caindo (partículas) + névoa no pé.
+local function waterfall(parent: Instance, top: Vector3, height: number, width: number, facing: Vector3)
+	local flat = Vector3.new(facing.X, 0, facing.Z).Unit
+	local middle = top - Vector3.new(0, height / 2, 0) + flat * 1.5
+	local sheet = newPart(
+		"Cachoeira",
+		Vector3.new(width, height, 1.2),
+		CFrame.lookAt(middle, middle + flat),
+		Color3.fromRGB(175, 222, 255),
+		parent
+	)
+	sheet.Material = Enum.Material.Glass
+	sheet.Transparency = 0.3
+	sheet.CanCollide = false
+	sheet.CastShadow = false
+	local source = newPart(
+		"Nascente",
+		Vector3.new(width, 1, 2),
+		CFrame.lookAt(top + flat * 2, top + flat * 3),
+		Color3.new(1, 1, 1),
+		parent
+	)
+	source.Transparency = 1
+	source.CanCollide = false
+	local drops = Instance.new("ParticleEmitter")
+	drops.Name = "Agua"
+	drops.Color = ColorSequence.new(Color3.fromRGB(225, 242, 255))
+	drops.LightEmission = 0.2
+	drops.Transparency = NumberSequence.new(0.35)
+	drops.Size = NumberSequence.new(2.4)
+	drops.Rate = width * 2
+	drops.Speed = NumberRange.new(4, 8)
+	drops.SpreadAngle = Vector2.new(8, 8)
+	drops.EmissionDirection = Enum.NormalId.Bottom
+	drops.Acceleration = Vector3.new(0, -70, 0)
+	drops.Lifetime = NumberRange.new(math.sqrt(2 * height / 70))
+	drops.Parent = source
+	local mist = newPart(
+		"Nevoa",
+		Vector3.new(width, 1, 8),
+		CFrame.new(top - Vector3.new(0, height - 1, 0) + flat * 4),
+		Color3.new(1, 1, 1),
+		parent
+	)
+	mist.Transparency = 1
+	mist.CanCollide = false
+	local spray = sparkles(mist, Color3.fromRGB(235, 248, 255), 18, 3)
+	spray.LightEmission = 0.3
+	spray.Speed = NumberRange.new(3, 7)
+end
+
+-- Casinha de favo: torre hexagonal de cera, telhado em cúpula, janela acesa.
+local function honeyHut(parent: Instance, base: Vector3, height: number, rng: Random)
+	local width = height * 0.8
+	local side = width / math.sqrt(3)
+	local yaw = rng:NextNumber(0, math.pi)
+	local body = CFrame.new(base + Vector3.new(0, height / 2, 0)) * CFrame.Angles(0, yaw, 0)
+	for k = 0, 2 do
+		-- Prisma hexagonal em pé: 3 blocos girados em volta do eixo vertical.
+		local block = newPart(
+			"Casa",
+			Vector3.new(side, height, width),
+			body * CFrame.Angles(0, k * math.pi / 3, 0),
+			HUT_WAX,
+			parent
+		)
+		block.Material = Enum.Material.SmoothPlastic
+	end
+	local roof = ball("Telhado", width * 1.15, base + Vector3.new(0, height, 0), HUT_ROOF, parent)
+	roof.Size = Vector3.new(width * 1.15, width * 0.8, width * 1.15)
+	local window = newPart(
+		"Janela",
+		Vector3.new(width * 0.32, height * 0.32, 0.4),
+		body * CFrame.new(0, height * 0.05, -width / 2 - 0.1),
+		LANTERN,
+		parent
+	)
+	window.Material = Enum.Material.Neon
+	window:SetAttribute("NightColor", LANTERN)
+	CollectionService:AddTag(window, MapBuilder.Tags.NightGlow)
+	local door = newPart(
+		"Porta",
+		Vector3.new(width * 0.3, height * 0.38, 0.4),
+		body * CFrame.new(0, -height * 0.31, width / 2 + 0.1),
+		DARK_WOOD,
+		parent
+	)
+	door.Material = Enum.Material.Wood
+end
+
+-- Penhasco: coluna de rocha com topo gramado, casinhas e uma lanterna.
+local function cliffPillar(
+	parent: Instance,
+	center: Vector3,
+	radius: number,
+	height: number,
+	rng: Random
+): Vector3
+	local terrain = workspace.Terrain
+	terrain:FillCylinder(
+		CFrame.new(center + Vector3.new(0, height / 2 - 6, 0)),
+		height + 12,
+		radius,
+		Enum.Material.Rock
+	)
+	-- Saias de pedra mais largas na base (silhueta irregular).
+	terrain:FillBall(center + Vector3.new(radius * 0.4, 10, -radius * 0.3), radius * 0.9, Enum.Material.Slate)
+	terrain:FillCylinder(
+		CFrame.new(center + Vector3.new(0, height + 1, 0)),
+		4,
+		radius + 2,
+		Enum.Material.Grass
+	)
+	terrain:FillBall(center + Vector3.new(0, height + 1, 0), radius * 0.55, Enum.Material.LeafyGrass)
+	local top = center + Vector3.new(0, height + 3, 0)
+	for i = 1, 2 do
+		local angle = i * math.pi + rng:NextNumber(-0.6, 0.6)
+		local spot = top + Vector3.new(math.cos(angle), 0, math.sin(angle)) * radius * 0.45
+		honeyHut(parent, spot, rng:NextNumber(10, 15), rng)
+	end
+	local post = newPart(
+		"Poste",
+		Vector3.new(0.8, 9, 0.8),
+		CFrame.new(top + Vector3.new(0, 4.5, 0)),
+		DARK_WOOD,
+		parent
+	)
+	post.Material = Enum.Material.Wood
+	local lamp = ball("Lanterna", 2.2, top + Vector3.new(0, 9.6, 0), LANTERN, parent)
+	lamp.Material = Enum.Material.Neon
+	local light = Instance.new("PointLight")
+	light.Color = LANTERN
+	light.Range = 26
+	light.Brightness = 0.8
+	light.Parent = lamp
+	return top
+end
+
+local function buildLandscape(parent: Instance, rng: Random)
+	local folder = Instance.new("Model")
+	folder.Name = "Paisagem"
+	folder.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
+	folder.Parent = parent
+	local terrain = workspace.Terrain
+	local royalAngle = math.atan2(Config.Map.RoyalHive.Position.Z, Config.Map.RoyalHive.Position.X)
+
+	-- 1. Cordilheira no horizonte: picos ALTOS (300–400 studs) feitos de peças
+	-- (elipsoides), que passam por cima das copas e aparecem de qualquer lugar.
+	-- Peças grandes são baratas (uma peça por forma) e chegam ao cliente.
+	-- Model "Persistent": o Roblox manda para todos os clientes mesmo longe
+	-- (com streaming, peças a mais de ~1000 studs não chegavam e o céu ficava vazio).
+	local mountains = Instance.new("Model")
+	mountains.Name = "Montanhas"
+	mountains.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
+	mountains.Parent = folder
+	local function ellipsoid(
+		name: string,
+		size: Vector3,
+		center: Vector3,
+		color: Color3,
+		material: Enum.Material
+	)
+		local part = newPart(name, size, CFrame.new(center), color, mountains)
+		part.Material = material
+		part.CastShadow = false
+		local mesh = Instance.new("SpecialMesh")
+		mesh.MeshType = Enum.MeshType.Sphere
+		mesh.Parent = part
+		return part
+	end
+	local peaks = 24
+	for i = 1, peaks do
+		local angle = (i / peaks) * math.pi * 2 + rng:NextNumber(-0.05, 0.05)
+		local radius = rng:NextNumber(1190, 1260) -- atrás dos penhascos (que ficam a ~950)
+		local base = Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+		local width = rng:NextNumber(230, 330)
+		local height = rng:NextNumber(480, 700)
+		-- Saia verde larga, pico de pedra e (às vezes) neve no topo.
+		ellipsoid(
+			"Encosta",
+			Vector3.new(width * 1.6, height * 0.42, width * 1.6),
+			base + Vector3.new(0, 10, 0),
+			Color3.fromRGB(86, 128, 70),
+			Enum.Material.Grass
+		)
+		ellipsoid(
+			"Pico",
+			Vector3.new(width, height, width * 0.9),
+			base + Vector3.new(rng:NextNumber(-20, 20), 40, 0),
+			Color3.fromRGB(122, 118, 126),
+			Enum.Material.Slate
+		)
+		if rng:NextNumber() < 0.55 then
+			ellipsoid(
+				"Neve",
+				Vector3.new(width * 0.42, height * 0.2, width * 0.4),
+				base + Vector3.new(0, 40 + height * 0.42, 0),
+				Color3.fromRGB(240, 245, 252),
+				Enum.Material.Snow
+			)
+		end
+	end
+
+	-- 2. Colinas no pé das montanhas (longe do castelo, para não esconder o palácio).
+	for i = 1, 26 do
+		local angle = (i / 26) * math.pi * 2 + rng:NextNumber(-0.1, 0.1)
+		if math.abs(angleDelta(angle, royalAngle)) > 0.4 then
+			local radius = rng:NextNumber(900, 960)
+			local center = Vector3.new(math.cos(angle) * radius, -40, math.sin(angle) * radius)
+			terrain:FillBall(center, rng:NextNumber(70, 110), Enum.Material.Grass)
+			terrain:FillBall(center + Vector3.new(0, 20, 0), rng:NextNumber(40, 60), Enum.Material.LeafyGrass)
+		end
+	end
+
+	-- 3. Dois grupos de penhascos com casinhas, pontes e cachoeira.
+	for _, group in Config.Map.CliffGroups do
+		local tops: { Vector3 } = {}
+		local radii: { number } = {}
+		for i, offset in group.Pillars do
+			local center = group.Center + offset
+			local radius = rng:NextNumber(24, 34)
+			local height = rng:NextNumber(70, 120) + (if i == 1 then 30 else 0)
+			table.insert(tops, cliffPillar(folder, center, radius, height, rng))
+			table.insert(radii, radius)
+		end
+		for i = 1, #tops - 1 do
+			bridge(
+				folder,
+				tops[i],
+				tops[i + 1],
+				tops[i].Y + 2,
+				tops[i + 1].Y + 2,
+				math.max(radii[i], radii[i + 1]) - 4
+			)
+		end
+		-- Cachoeira no penhasco mais alto, virada para o centro do vale.
+		local toCenter = -Vector3.new(tops[1].X, 0, tops[1].Z).Unit
+		local edge = Vector3.new(tops[1].X, tops[1].Y - 3, tops[1].Z) + toCenter * (radii[1] + 1)
+		waterfall(folder, edge, tops[1].Y - 4, 14, toCenter)
+		terrain:FillCylinder(
+			CFrame.new(Vector3.new(edge.X, -3, edge.Z) + toCenter * 22),
+			6,
+			26,
+			Enum.Material.Water
+		)
+	end
+end
+
+-- Andaimes de madeira dos dois lados da parede de favos (referências 02/03):
+-- postes, travessas, plataformas com blocos de cera, escada e roldana com balde.
+local SCAFFOLD_WOOD = Color3.fromRGB(150, 108, 66)
+
+local function scaffolding(parent: Instance, plotCF: CFrame)
+	local model = Instance.new("Model")
+	model.Name = "Andaimes"
+	for side = -1, 1, 2 do
+		local x0 = side * 36
+		local x1 = side * 46
+		for _, x in { x0, x1 } do
+			for _, z in { -3, -11 } do
+				local post = newPart(
+					"Poste",
+					Vector3.new(1.2, 62, 1.2),
+					plotCF * CFrame.new(x, 31, z),
+					SCAFFOLD_WOOD,
+					model
+				)
+				post.Material = Enum.Material.Wood
+			end
+		end
+		for level = 1, 3 do
+			local y = level * 16
+			-- Plataforma (tábuas) e travessas.
+			local floor = newPart(
+				"Tablado",
+				Vector3.new(11, 0.8, 10),
+				plotCF * CFrame.new((x0 + x1) / 2, y, -7),
+				Color3.fromRGB(170, 124, 78),
+				model
+			)
+			floor.Material = Enum.Material.WoodPlanks
+			for _, z in { -3, -11 } do
+				local rail = newPart(
+					"Corrimao",
+					Vector3.new(11, 0.5, 0.5),
+					plotCF * CFrame.new((x0 + x1) / 2, y + 3, z),
+					SCAFFOLD_WOOD,
+					model
+				)
+				rail.Material = Enum.Material.Wood
+				rail.CanCollide = false
+			end
+			-- Travessa diagonal (X do andaime).
+			local brace = newPart(
+				"Travessa",
+				Vector3.new(0.5, 18, 0.5),
+				plotCF * CFrame.new((x0 + x1) / 2, y - 8, -11) * CFrame.Angles(0, 0, math.rad(side * 32)),
+				SCAFFOLD_WOOD,
+				model
+			)
+			brace.Material = Enum.Material.Wood
+			brace.CanCollide = false
+			-- Blocos de cera empilhados (material de construção).
+			for k = 0, level % 2 do
+				local block = newPart(
+					"BlocoCera",
+					Vector3.new(2.4, 2, 2.4),
+					plotCF * CFrame.new((x0 + x1) / 2 + (k - 0.5) * 3, y + 1.4, -6),
+					WAX,
+					model
+				)
+				block.CanCollide = false
+			end
+		end
+		-- Escada encostada.
+		for step = 0, 12 do
+			local rung = newPart(
+				"Degrau",
+				Vector3.new(4, 0.4, 0.4),
+				plotCF * CFrame.new(x1 + side * 2.5, 2 + step * 3.6, -1.5),
+				SCAFFOLD_WOOD,
+				model
+			)
+			rung.Material = Enum.Material.Wood
+			rung.CanCollide = false
+		end
+		for _, dx in { -2, 2 } do
+			local beam = newPart(
+				"Banzo",
+				Vector3.new(0.5, 47, 0.5),
+				plotCF * CFrame.new(x1 + side * 2.5 + dx, 23.5, -1.5),
+				SCAFFOLD_WOOD,
+				model
+			)
+			beam.Material = Enum.Material.Wood
+			beam.CanCollide = false
+		end
+		-- Roldana no alto com corda e balde de mel.
+		local arm = newPart(
+			"Braco",
+			Vector3.new(8, 0.8, 0.8),
+			plotCF * CFrame.new(x1 + side * 3, 62, -7),
+			SCAFFOLD_WOOD,
+			model
+		)
+		arm.Material = Enum.Material.Wood
+		local rope = newPart(
+			"Corda",
+			Vector3.new(0.25, 26, 0.25),
+			plotCF * CFrame.new(x1 + side * 6.5, 49, -7),
+			Color3.fromRGB(190, 160, 110),
+			model
+		)
+		rope.Material = Enum.Material.Fabric
+		rope.CanCollide = false
+		local bucket = newPart(
+			"Balde",
+			Vector3.new(2.6, 3.2, 3.2),
+			plotCF * CFrame.new(x1 + side * 6.5, 35, -7) * CFrame.Angles(0, 0, math.rad(90)),
+			Color3.fromRGB(120, 84, 50),
+			model
+		)
+		bucket.Shape = Enum.PartType.Cylinder
+		bucket.CanCollide = false
+		local honey = newPart(
+			"Mel",
+			Vector3.new(0.4, 2.8, 2.8),
+			plotCF * CFrame.new(x1 + side * 6.5, 36.5, -7) * CFrame.Angles(0, 0, math.rad(90)),
+			Color3.fromRGB(255, 176, 40),
+			model
+		)
+		honey.Shape = Enum.PartType.Cylinder
+		honey.Material = Enum.Material.Neon
+		honey.CanCollide = false
+	end
+	model.Parent = parent
+end
+
+-- Trilhas de terra: da praça central até cada colmeia e para os lugares
+-- importantes (campo, Colmeia Real, lago, caverna). Dá leitura de "rota".
+local function dirtPath(from: Vector3, to: Vector3, width: number)
+	local terrain = workspace.Terrain
+	local flat = Vector3.new(to.X - from.X, 0, to.Z - from.Z)
+	local length = flat.Magnitude
+	if length < 1 then
+		return
+	end
+	local steps = math.ceil(length / 24)
+	for i = 0, steps - 1 do
+		local t0, t1 = i / steps, (i + 1) / steps
+		-- Leve zigue-zague para não parecer régua.
+		local wobble = math.sin(i * 1.7) * 3
+		local a = from:Lerp(to, t0)
+		local b = from:Lerp(to, t1)
+		local mid = (a + b) / 2
+		local cf = CFrame.lookAt(Vector3.new(mid.X, -0.6, mid.Z), Vector3.new(b.X, -0.6, b.Z))
+			* CFrame.new(wobble, 0, 0)
+		terrain:FillBlock(cf, Vector3.new(width, 1.4, length / steps + 4), Enum.Material.Ground)
+	end
 end
 
 -- Árvores-colmeia (lotes dos jogadores) --------------------------------------------
@@ -1238,6 +1892,7 @@ local function buildPlot(parent: Instance, index: number, total: number): Plot
 
 	local wallOrigin = plotCF * CFrame.new(0, 34, 1.5)
 	decorateHiveTree(folder, plotCF, trunkCenter, wallOrigin)
+	scaffolding(folder, plotCF)
 
 	-- Plataforma de madeira na frente.
 	local deck = newPart(
@@ -1339,6 +1994,16 @@ function MapBuilder.Build(): MapData
 	buildLighting()
 	buildTerrain(rng)
 
+	-- Trilhas (antes das colmeias, que ficam por cima).
+	for i = 1, Config.Map.PlotCount do
+		local angle = (i / Config.Map.PlotCount) * math.pi * 2
+		local plot = Vector3.new(math.cos(angle), 0, math.sin(angle)) * (Config.Map.PlotRingRadius - 20)
+		dirtPath(Vector3.zero, plot, 9)
+	end
+	dirtPath(Vector3.new(0, 0, -40), Config.Map.RoyalHive.Position + Vector3.new(0, 0, 130), 12)
+	dirtPath(Vector3.new(40, 0, -20), Config.Places.Lake.Position - Vector3.new(80, 0, -40), 9)
+	dirtPath(Vector3.new(-30, 0, 30), Config.Places.Cave.Position + Vector3.new(50, 0, -40), 9)
+
 	local plotsFolder = Instance.new("Folder")
 	plotsFolder.Name = "Colmeias"
 	plotsFolder.Parent = folder
@@ -1382,6 +2047,12 @@ function MapBuilder.Build(): MapData
 	end
 
 	local royalSpots = buildRoyalHive(folder)
+	for _, nectar in buildSkyIsland(flowersFolder, rng) do
+		table.insert(flowers, nectar)
+	end
+	local caveSpots = buildCave(forestFolder)
+	local lakeSpots = buildLake(forestFolder)
+	buildLandscape(folder, rng)
 
 	local combsFolder = Instance.new("Folder")
 	combsFolder.Name = "Favos"
@@ -1420,6 +2091,17 @@ function MapBuilder.Build(): MapData
 	for i = 1, math.min(Config.Map.RareCombCount, #treeTops) do
 		table.insert(combs, buildComb(combsFolder, treeTops[i], "Raro"))
 	end
+	-- Caverna de Cristal: 2 raros e o resto médios (marcados para a conquista).
+	for i, spot in caveSpots do
+		local comb = buildComb(combsFolder, spot, if i <= 2 then "Raro" else "Medio")
+		comb:SetAttribute("Caverna", true)
+		table.insert(combs, comb)
+	end
+	-- Lago: favos médios em cima das vitórias-régias.
+	for _, spot in lakeSpots do
+		table.insert(combs, buildComb(combsFolder, spot, "Medio"))
+	end
+
 	-- E no alto das torres da Colmeia Real (zona de disputa).
 	for i = 1, math.min(Config.Map.RoyalHive.RareCombs, #royalSpots) do
 		table.insert(combs, buildComb(combsFolder, royalSpots[i], "Raro"))
@@ -1434,6 +2116,7 @@ function MapBuilder.Build(): MapData
 		Combs = combs,
 		SpiderSpots = treeBases,
 		MantisSpots = mushroomTops,
+		LakeCenter = Config.Places.Lake.Position,
 		RoyalPosition = Config.Map.RoyalHive.Position + Vector3.new(0, Config.Map.RoyalHive.PlateauHeight, 0),
 		DefaultSpawn = CFrame.new(0, 15, 0),
 	}

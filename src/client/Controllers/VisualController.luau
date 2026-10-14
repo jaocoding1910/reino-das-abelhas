@@ -22,12 +22,14 @@ local Debris = game:GetService("Debris")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Log = require(Shared.Util.Log)
 local Remotes = require(Shared.Remotes)
 
+local ClientSettings = require(script.Parent.Parent.UI.ClientSettings)
 local FlightController = require(script.Parent.FlightController)
 
 local VisualController = {}
@@ -38,7 +40,7 @@ local COMB_TAG = "FavoFlutuante"
 local WING_TAG = "AsaAbelha"
 local COMB_RANGE = 220
 local WING_RANGE = 250
-local DECOR_COUNT = 260
+local DECOR_COUNT = 520 -- flores, lavandas, tufos e cogumelinhos de enfeite (só no cliente)
 
 type CombEntry = { Model: Model, Base: CFrame, Phase: number }
 type Orb = {
@@ -193,12 +195,52 @@ local function spawnOrb(from: Vector3, target: () -> Vector3?, delay: number, co
 	end)
 end
 
+-- ---------------------------------------------------------------- números flutuantes
+
+-- "+3 🌼" subindo e sumindo em cima de onde você coletou/entregou.
+local function floatText(position: Vector3, text: string, color: Color3, big: boolean)
+	local holder = invisiblePart("TextoFlutuante", Vector3.one * 0.2)
+	holder.Position = position + Vector3.new(0, 3, 0)
+	holder.Parent = effectsFolder
+	local gui = Instance.new("BillboardGui")
+	gui.Size = if big then UDim2.fromOffset(300, 110) else UDim2.fromOffset(200, 76)
+	gui.AlwaysOnTop = true
+	gui.LightInfluence = 0
+	gui.MaxDistance = 250
+	gui.Adornee = holder
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Font = Enum.Font.GothamBlack
+	label.TextScaled = true
+	label.Text = text
+	label.TextColor3 = color
+	label.TextStrokeColor3 = Color3.fromRGB(60, 30, 0)
+	label.TextStrokeTransparency = 0
+	label.Parent = gui
+	local scale = Instance.new("UIScale")
+	scale.Scale = 0.2
+	scale.Parent = label
+	gui.Parent = holder
+	TweenService
+		:Create(scale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+		:Play()
+	TweenService:Create(holder, TweenInfo.new(1.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Position = holder.Position + Vector3.new(0, if big then 9 else 6, 0),
+	}):Play()
+	task.delay(0.9, function()
+		TweenService:Create(label, TweenInfo.new(0.5), { TextTransparency = 1, TextStrokeTransparency = 1 })
+			:Play()
+	end)
+	Debris:AddItem(holder, 1.6)
+end
+
 local function localRootPosition(): Vector3?
 	local root = rootOf(player)
 	return root and root.Position
 end
 
-local function onEffect(kind: string, position: Vector3, userId: number?)
+local function onEffect(kind: string, position: Vector3, userId: number?, text: string?)
 	if typeof(position) ~= "Vector3" then
 		return
 	end
@@ -209,6 +251,15 @@ local function onEffect(kind: string, position: Vector3, userId: number?)
 
 	if userId ~= player.UserId then
 		return
+	end
+	if typeof(text) == "string" and text ~= "" then
+		local delivery = kind == "entrega"
+		floatText(
+			position,
+			text,
+			if delivery then Color3.fromRGB(255, 190, 40) else Color3.fromRGB(255, 240, 150),
+			delivery
+		)
 	end
 	if kind == "coleta" then
 		-- Do favo/flor até você.
@@ -249,11 +300,14 @@ end
 
 -- ---------------------------------------------------------------- ambiente
 
+local decorFolder: Folder? = nil
 local ambientPart: Part
 local pollen: ParticleEmitter
 local fireflies: ParticleEmitter
 local windPart: Part
 local wind: ParticleEmitter
+local goldenRain: ParticleEmitter
+local rain: ParticleEmitter
 
 local function buildAmbient()
 	ambientPart = invisiblePart("Ambiente", Vector3.new(90, 30, 90))
@@ -307,6 +361,46 @@ local function buildAmbient()
 	})
 	fireflies.Parent = ambientPart
 
+	-- Chuva de pólen (evento): pontinhos dourados caindo do céu.
+	goldenRain = Instance.new("ParticleEmitter")
+	goldenRain.Name = "ChuvaDePolen"
+	goldenRain.Shape = Enum.ParticleEmitterShape.Box
+	goldenRain.ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume
+	goldenRain.Color = ColorSequence.new(Color3.fromRGB(255, 215, 70))
+	goldenRain.LightEmission = 1
+	goldenRain.LightInfluence = 0
+	goldenRain.Rate = 0
+	goldenRain.Lifetime = NumberRange.new(3, 5)
+	goldenRain.Speed = NumberRange.new(4, 8)
+	goldenRain.EmissionDirection = Enum.NormalId.Bottom
+	goldenRain.SpreadAngle = Vector2.new(15, 15)
+	goldenRain.RotSpeed = NumberRange.new(-90, 90)
+	goldenRain.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(0.1, 0.3),
+		NumberSequenceKeypoint.new(0.9, 0.25),
+		NumberSequenceKeypoint.new(1, 0),
+	})
+	goldenRain.Parent = ambientPart
+
+	-- Chuva (clima): riscos azulados caindo rápido.
+	rain = Instance.new("ParticleEmitter")
+	rain.Name = "Chuva"
+	rain.Shape = Enum.ParticleEmitterShape.Box
+	rain.ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume
+	rain.EmissionDirection = Enum.NormalId.Bottom
+	rain.Orientation = Enum.ParticleOrientation.VelocityParallel
+	rain.Color = ColorSequence.new(Color3.fromRGB(190, 210, 240))
+	rain.LightEmission = 0.2
+	rain.Transparency = NumberSequence.new(0.45)
+	rain.Size = NumberSequence.new(0.08)
+	rain.Squash = NumberSequence.new(-4)
+	rain.Speed = NumberRange.new(70, 90)
+	rain.Lifetime = NumberRange.new(0.5, 0.7)
+	rain.SpreadAngle = Vector2.new(4, 4)
+	rain.Rate = 0
+	rain.Parent = ambientPart
+
 	-- Vento da arrancada: riscos que passam pela câmera.
 	windPart = invisiblePart("Vento", Vector3.new(22, 14, 1))
 	windPart.Parent = effectsFolder
@@ -334,18 +428,32 @@ local function updateAmbient(dt: number)
 	local camera = workspace.CurrentCamera
 	ambientPart.Position = camera.CFrame.Position
 	local night = workspace:GetAttribute("IsNight") == true
-	pollen.Enabled = not night
+	local low = ClientSettings.Get().Quality == "Baixa"
+	pollen.Enabled = not night and not low
+	local raining = workspace:GetAttribute("Evento") == "ChuvaDePolen"
+	goldenRain.Rate += ((if raining then (if low then 15 else 60) else 0) - goldenRain.Rate) * math.clamp(
+		dt * 2,
+		0,
+		1
+	)
+	local weatherRain = workspace:GetAttribute("Clima") == "Chuva"
+	rain.Rate += ((if weatherRain then (if low then 120 else 450) else 0) - rain.Rate) * math.clamp(dt, 0, 1)
+	-- A chuva cai do alto da caixa em volta da câmera.
+	ambientPart.Position = camera.CFrame.Position + Vector3.new(0, if weatherRain then 18 else 0, 0)
 	if night ~= lastNight then
 		lastNight = night
 		for _, cap in glowCaps do
 			cap.Material = if night then Enum.Material.Neon else Enum.Material.SmoothPlastic
 		end
 	end
-	fireflies.Rate += ((if night then 14 else 0) - fireflies.Rate) * math.clamp(dt, 0, 1)
+	fireflies.Rate += ((if night and not low then 14 else 0) - fireflies.Rate) * math.clamp(dt, 0, 1)
+	if decorFolder then
+		decorFolder.Parent = if low then nil else effectsFolder
+	end
 
 	windPart.CFrame = camera.CFrame * CFrame.new(0, 0, -16)
 	local state = FlightController.State
-	wind.Rate = if state.Sprinting then 40 + 40 * math.clamp(state.SpeedFraction - 1, 0, 1) else 0
+	wind.Rate = if state.Sprinting and not low then 40 + 40 * math.clamp(state.SpeedFraction - 1, 0, 1) else 0
 end
 
 -- ---------------------------------------------------------------- flores de enfeite
@@ -384,6 +492,7 @@ type DecorSpot = {
 	Tilt: number,
 	Color: Color3,
 	Mushroom: boolean,
+	Kind: string, -- "Flor" | "Lavanda" | "Tufo"
 	Done: boolean,
 }
 
@@ -400,24 +509,63 @@ local function planDecor()
 			X = math.cos(angle) * radius,
 			Z = math.sin(angle) * radius,
 			Yaw = rng:NextNumber(0, math.pi * 2),
-			Height = rng:NextNumber(1.2, 2.6),
+			-- Na escala da abelha (6 studs): flores do tamanho dela, como na referência.
+			Height = rng:NextNumber(3, 7),
 			Tilt = rng:NextNumber(-20, 20),
 			Color = DECOR_COLORS[rng:NextInteger(1, #DECOR_COLORS)],
 			Mushroom = radius > Config.Map.ForestRadius.Min and rng:NextNumber() < 0.6,
+			Kind = (function()
+				local roll = rng:NextNumber()
+				return if roll < 0.3 then "Lavanda" elseif roll < 0.5 then "Tufo" else "Flor"
+			end)(),
 			Done = false,
 		})
 	end
 end
 
-local decorFolder: Folder? = nil
-
 local function buildSpot(spot: DecorSpot, ground: Vector3)
 	local folder = decorFolder :: Folder
 	local base = CFrame.new(ground) * CFrame.Angles(0, spot.Yaw, 0)
 	local height = spot.Height
+	if not spot.Mushroom and spot.Kind == "Tufo" then
+		-- Tufo de grama alta: lâminas finas inclinadas.
+		for blade = 0, 4 do
+			decorPart(
+				folder,
+				Vector3.new(0.3, height * 0.8, 0.08),
+				base
+					* CFrame.Angles(0, blade * 1.3, 0)
+					* CFrame.new(0, height * 0.35, 0)
+					* CFrame.Angles(math.rad(12 + blade * 4), 0, 0),
+				Color3.fromRGB(95 + blade * 8, 165, 70),
+				Enum.PartType.Block
+			)
+		end
+		return
+	end
+	if not spot.Mushroom and spot.Kind == "Lavanda" then
+		-- Lavanda: haste com espiga de bolinhas roxas.
+		decorPart(
+			folder,
+			Vector3.new(height, 0.18, 0.18),
+			base * CFrame.new(0, height / 2, 0) * CFrame.Angles(0, 0, math.rad(90)),
+			Color3.fromRGB(90, 140, 70),
+			Enum.PartType.Cylinder
+		)
+		for k = 0, 5 do
+			decorPart(
+				folder,
+				Vector3.one * (0.75 - k * 0.07),
+				base * CFrame.new(0, height * 0.62 + k * height * 0.075, 0),
+				Color3.fromRGB(150 + k * 6, 110, 230),
+				Enum.PartType.Ball
+			)
+		end
+		return
+	end
 	decorPart(
 		folder,
-		Vector3.new(height, 0.14, 0.14),
+		Vector3.new(height, 0.22, 0.22),
 		base * CFrame.new(0, height / 2, 0) * CFrame.Angles(0, 0, math.rad(90)),
 		Color3.fromRGB(85, 150, 60),
 		Enum.PartType.Cylinder
@@ -426,7 +574,7 @@ local function buildSpot(spot: DecorSpot, ground: Vector3)
 		-- Cogumelinho que brilha à noite, no bosque.
 		local cap = decorPart(
 			folder,
-			Vector3.new(0.5, 1.3, 1.3),
+			Vector3.new(0.7, 2.6, 2.6),
 			base * CFrame.new(0, height, 0) * CFrame.Angles(0, 0, math.rad(90)),
 			Color3.fromRGB(150, 110, 255),
 			Enum.PartType.Cylinder
@@ -440,10 +588,10 @@ local function buildSpot(spot: DecorSpot, ground: Vector3)
 		for p = 0, 4 do
 			decorPart(
 				folder,
-				Vector3.new(0.45, 0.1, 0.9),
+				Vector3.new(1.1, 0.14, 2),
 				head
 					* CFrame.Angles(0, p * math.pi * 2 / 5, 0)
-					* CFrame.new(0, 0, -0.45)
+					* CFrame.new(0, 0, -1)
 					* CFrame.Angles(math.rad(15), 0, 0),
 				spot.Color,
 				Enum.PartType.Block
@@ -451,8 +599,8 @@ local function buildSpot(spot: DecorSpot, ground: Vector3)
 		end
 		decorPart(
 			folder,
-			Vector3.one * 0.45,
-			head * CFrame.new(0, 0.08, 0),
+			Vector3.one * 1.05,
+			head * CFrame.new(0, 0.15, 0),
 			Color3.fromRGB(255, 200, 50),
 			Enum.PartType.Ball
 		)
@@ -500,6 +648,217 @@ local function decorLoop()
 	end
 end
 
+-- ---------------------------------------------------------------- borboletas e arco-íris
+
+type Butterfly = {
+	Body: BasePart,
+	WingL: BasePart,
+	WingR: BasePart,
+	Center: Vector3,
+	Phase: number,
+	Radius: number,
+}
+local butterflies: { Butterfly } = {}
+local BUTTERFLY_COLORS = {
+	Color3.fromRGB(255, 150, 60),
+	Color3.fromRGB(120, 180, 255),
+	Color3.fromRGB(255, 120, 200),
+	Color3.fromRGB(255, 230, 90),
+	Color3.fromRGB(170, 120, 255),
+}
+
+local function buildButterflies()
+	local folder = Instance.new("Folder")
+	folder.Name = "Borboletas"
+	folder.Parent = effectsFolder
+	local rng = Random.new(Config.Map.Seed + 5)
+	for i = 1, 18 do
+		local angle = rng:NextNumber(0, math.pi * 2)
+		local radius = rng:NextNumber(Config.Regions.HiveRadius, Config.Map.FieldRadius.Max)
+		local center = Vector3.new(math.cos(angle) * radius, rng:NextNumber(8, 30), math.sin(angle) * radius)
+		local color = BUTTERFLY_COLORS[(i % #BUTTERFLY_COLORS) + 1]
+		local body = invisiblePart("Corpo", Vector3.new(0.25, 0.25, 1.2))
+		body.Transparency = 0
+		body.Color = Color3.fromRGB(40, 30, 30)
+		body.Parent = folder
+		local function wing(name: string): Part
+			local w = invisiblePart(name, Vector3.new(1.4, 0.06, 1.3))
+			w.Transparency = 0
+			w.Color = color
+			w.Material = Enum.Material.SmoothPlastic
+			local mesh = Instance.new("SpecialMesh")
+			mesh.MeshType = Enum.MeshType.Sphere
+			mesh.Parent = w
+			w.Parent = folder
+			return w
+		end
+		table.insert(butterflies, {
+			Body = body,
+			WingL = wing("AsaE"),
+			WingR = wing("AsaD"),
+			Center = center,
+			Phase = rng:NextNumber(0, 100),
+			Radius = rng:NextNumber(6, 16),
+		})
+	end
+end
+
+local function updateButterflies(now: number, cameraPosition: Vector3, low: boolean)
+	for _, b in butterflies do
+		local visible = not low and (b.Center - cameraPosition).Magnitude < 260
+		if not visible then
+			if b.Body.Transparency < 1 then
+				b.Body.Transparency, b.WingL.Transparency, b.WingR.Transparency = 1, 1, 1
+			end
+		else
+			if b.Body.Transparency > 0 then
+				b.Body.Transparency, b.WingL.Transparency, b.WingR.Transparency = 0, 0, 0
+			end
+			local t = now * 0.45 + b.Phase
+			local position = b.Center
+				+ Vector3.new(math.cos(t) * b.Radius, math.sin(t * 2.3) * 2, math.sin(t * 0.8) * b.Radius)
+			local ahead = b.Center
+				+ Vector3.new(
+					math.cos(t + 0.1) * b.Radius,
+					math.sin((t + 0.1) * 2.3) * 2,
+					math.sin((t + 0.1) * 0.8) * b.Radius
+				)
+			local cf = CFrame.lookAt(position, ahead)
+			local flap = math.sin(now * 14 + b.Phase) * 1.1
+			b.Body.CFrame = cf
+			b.WingL.CFrame = cf * CFrame.Angles(0, 0, flap) * CFrame.new(-0.7, 0, 0)
+			b.WingR.CFrame = cf * CFrame.Angles(0, 0, -flap) * CFrame.new(0.7, 0, 0)
+		end
+	end
+end
+
+-- Flor arco-íris: as cores giram enquanto ela existir.
+local rainbowParts: { [BasePart]: boolean } = {}
+
+local function updateRainbow(now: number)
+	for part in rainbowParts do
+		part.Color = Color3.fromHSV((now * 0.35) % 1, 0.75, 1)
+	end
+end
+
+-- ---------------------------------------------------------------- néctar e destaque
+
+-- Gotas de néctar brilhando nas flores DISPONÍVEIS mais perto (como na
+-- referência). Conjunto fixo de peças reaproveitadas: nada é criado por flor.
+local DROPS_FLOWERS = 10
+local DROPS_PER_FLOWER = 3
+local DROP_RANGE = 140
+local dropParts: { BasePart } = {}
+local dropFrames: { CFrame } = {}
+local dropTargets: { BasePart } = {}
+local nectarPrompts: { ProximityPrompt } = {}
+local resourcePrompts: { ProximityPrompt } = {}
+local highlight: Highlight
+
+local function buildDrops()
+	for i = 1, DROPS_FLOWERS * DROPS_PER_FLOWER do
+		local drop = invisiblePart("GotaNectar", Vector3.one * (0.55 + (i % 3) * 0.18))
+		drop.Shape = Enum.PartType.Ball
+		drop.Material = Enum.Material.Glass
+		drop.Color = Color3.fromRGB(255, 200, 50)
+		drop.Transparency = 1
+		drop.Parent = effectsFolder
+		dropParts[i] = drop
+		dropFrames[i] = CFrame.new(0, -1000, 0)
+	end
+	highlight = Instance.new("Highlight")
+	highlight.Name = "DestaqueRecurso"
+	highlight.FillTransparency = 1
+	highlight.OutlineColor = Color3.fromRGB(255, 220, 110)
+	highlight.OutlineTransparency = 0.15
+	highlight.DepthMode = Enum.HighlightDepthMode.Occluded
+	highlight.Enabled = false
+	highlight.Parent = effectsFolder
+end
+
+local function scanResources()
+	local map = workspace:FindFirstChild("Mapa")
+	if not map then
+		return
+	end
+	local nectar, all = {}, {}
+	for _, folderName in { "Flores", "Favos" } do
+		local holder = map:FindFirstChild(folderName)
+		if holder then
+			for _, item in holder:GetDescendants() do
+				if item:IsA("ProximityPrompt") then
+					table.insert(all, item)
+					if folderName == "Flores" then
+						table.insert(nectar, item)
+					end
+				end
+			end
+		end
+	end
+	nectarPrompts, resourcePrompts = nectar, all
+end
+
+-- Escolhe as flores (4× por segundo) e o recurso mais perto para destacar.
+local function pickTargets(cameraPosition: Vector3, low: boolean)
+	table.clear(dropTargets)
+	if not low then
+		local candidates = {}
+		for _, prompt in nectarPrompts do
+			local holder = prompt.Parent
+			if prompt.Enabled and holder and holder:IsA("BasePart") then
+				local distance = (holder.Position - cameraPosition).Magnitude
+				if distance < DROP_RANGE then
+					table.insert(candidates, { Part = holder, Distance = distance })
+				end
+			end
+		end
+		table.sort(candidates, function(a, b)
+			return a.Distance < b.Distance
+		end)
+		for i = 1, math.min(DROPS_FLOWERS, #candidates) do
+			dropTargets[i] = candidates[i].Part
+		end
+	end
+	-- Destaque dourado no recurso disponível mais perto (até 30 studs).
+	local best, bestDistance = nil, 30
+	for _, prompt in resourcePrompts do
+		local holder = prompt.Parent
+		if prompt.Enabled and holder and holder:IsA("BasePart") then
+			local distance = (holder.Position - cameraPosition).Magnitude
+			if distance < bestDistance then
+				best, bestDistance = holder, distance
+			end
+		end
+	end
+	local adornee: Instance? = best
+	if best and best.Parent and best.Parent:IsA("Model") and best.Parent.Name ~= "Flores" then
+		adornee = best.Parent -- favo inteiro
+	end
+	highlight.Adornee = adornee
+	highlight.Enabled = adornee ~= nil
+end
+
+local function updateDrops(now: number)
+	for i, drop in dropParts do
+		local flower = dropTargets[(i - 1) // DROPS_PER_FLOWER + 1]
+		if flower and flower.Parent then
+			local k = (i - 1) % DROPS_PER_FLOWER
+			local radius = math.max(flower.Size.X, flower.Size.Z) * 0.22
+			local angle = k * 2.1 + now * 0.4
+			local lift = math.min(flower.Size.X, flower.Size.Y, flower.Size.Z) * 0.5 + 0.5
+			local bob = math.sin(now * 2.4 + i) * 0.25
+			dropFrames[i] = CFrame.new(
+				flower.Position + Vector3.new(math.cos(angle) * radius, lift + bob, math.sin(angle) * radius)
+			)
+			drop.Transparency = 0.15
+		else
+			dropFrames[i] = CFrame.new(0, -1000, 0)
+			drop.Transparency = 1
+		end
+	end
+	workspace:BulkMoveTo(dropParts, dropFrames, Enum.BulkMoveMode.FireCFrameChanged)
+end
+
 -- ---------------------------------------------------------------- ciclo
 
 function VisualController:Init()
@@ -511,6 +870,21 @@ function VisualController:Init()
 		wings[instance :: Weld] = nil
 	end)
 	buildAmbient()
+	buildButterflies()
+	buildDrops()
+	local function addRainbow(instance: Instance)
+		if instance:IsA("BasePart") then
+			rainbowParts[instance] = true
+		end
+	end
+	track("FlorArcoIris", addRainbow, function(instance)
+		rainbowParts[instance :: BasePart] = nil
+		-- Volta a cor normal (o servidor também ajusta ao coletar).
+		local original = instance:GetAttribute("NectarColor")
+		if typeof(original) == "Color3" and instance:IsA("BasePart") then
+			instance.Color = original
+		end
+	end)
 end
 
 function VisualController:Start()
@@ -518,6 +892,13 @@ function VisualController:Start()
 
 	planDecor()
 	task.spawn(decorLoop)
+	task.spawn(function()
+		while true do
+			scanResources()
+			task.wait(3)
+		end
+	end)
+	local pickAccumulator = 1
 
 	RunService.RenderStepped:Connect(function(dt)
 		local now = os.clock()
@@ -553,6 +934,14 @@ function VisualController:Start()
 
 		updateOrbs(now)
 		updateAmbient(dt)
+		updateButterflies(now, cameraPosition, ClientSettings.Get().Quality ~= "Alta")
+		pickAccumulator += dt
+		if pickAccumulator >= 0.25 then
+			pickAccumulator = 0
+			pickTargets(cameraPosition, ClientSettings.Get().Quality == "Baixa")
+		end
+		updateDrops(now)
+		updateRainbow(now)
 	end)
 	Log.info("VisualController", "pronto")
 end

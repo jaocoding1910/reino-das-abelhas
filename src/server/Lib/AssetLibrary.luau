@@ -223,8 +223,9 @@ function AssetLibrary.Attach(name: string, root: BasePart, length: number, offse
 			local role = part:GetAttribute("Papel")
 			if role == "AsaE" or role == "AsaD" then
 				-- Dobradiça perto do corpo: a asa gira em volta dela.
-				local side = if role == "AsaE" then -1 else 1
+				-- O lado vem da posição FINAL (depois do giro BeeYawDegrees), não do nome.
 				local rel = root.CFrame:ToObjectSpace(part.CFrame)
+				local side = if rel.Position.X < 0 then -1 else 1
 				local hinge = Vector3.new(side * 0.35, rel.Position.Y, rel.Position.Z)
 				local c0 = CFrame.new(hinge) * rel.Rotation
 				local weld = Instance.new("Weld")

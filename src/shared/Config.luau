@@ -45,7 +45,7 @@ Config.Rarities = {
 -- Coleta e transporte -----------------------------------------------------
 Config.Collection = {
 	MaxDistance = 14, -- studs entre abelha e recurso
-	InteractTime = 0.8, -- segundos segurando para coletar
+	InteractTime = 0.5, -- segundos segurando para coletar
 	NectarPerFlower = 3, -- néctar por flor coletada
 	MinIntervalBetweenActions = 0.25, -- anti-spam no servidor
 	FlowerRespawnTime = 30,
@@ -59,6 +59,35 @@ Config.Carry = {
 	SpeedPenaltyPerWeight = 0.02, -- -2% de velocidade por unidade
 	MaxSpeedPenalty = 0.35, -- nunca perde mais que 35%
 }
+
+-- Objetivo de longo prazo: título Rei/Rainha da Colmeia (salvo no perfil).
+-- O progresso é a média das quatro metas (cada uma limitada a 100%).
+Config.Crown = {
+	Level = 20,
+	Cells = 24,
+	RareDelivered = 5,
+	RoyalRequests = 3,
+	RewardHoney = 2000,
+}
+
+-- Validação de deslocamento (anti teleporte para coleta remota).
+-- Folga grande para não punir voo legítimo (arrancada, anéis, poções).
+Config.Movement = {
+	CheckInterval = 0.5,
+	SpeedFactor = 3.4, -- × velocidade base × multiplicador do jogador
+	Slack = 40, -- studs extras por verificação
+	BlockSeconds = 2, -- coleta bloqueada depois de um salto suspeito
+}
+
+-- Combo: coletar seguido (sem parar mais que Window segundos) dá néctar extra.
+Config.Combo = {
+	Window = 10, -- segundos para a próxima coleta manter o combo
+	Max = 5, -- combo máximo (x5)
+	NectarPerStep = 1, -- +1 néctar por degrau de combo (x5 = +4)
+}
+
+-- Entrega automática: chegou perto do pote com carga, entrega sozinho.
+Config.AutoDeliver = { Distance = 16 }
 
 Config.NectarToHoneyRate = 2 -- 1 néctar entregue = 2 de mel
 
@@ -79,7 +108,14 @@ Config.Flight = {
 	CameraRollDegrees = 5, -- inclinação leve da câmera (0 desliga)
 	FieldOfView = 78,
 	FieldOfViewBoost = 14, -- quanto o FOV abre na velocidade máxima
-	ShowLegs = false, -- patinhas na parte de baixo da tela (true liga)
+	ShowLegs = false, -- (antigo) cilindros de pata; substituídos pelo Viewmodel
+	Viewmodel = true,
+	-- Pirueta lateral (duplo toque em A/D): giro de 360° com dash para o lado.
+	RollDuration = 0.45,
+	RollSpeed = 55, -- studs/s extras para o lado no início do giro
+	RollStaminaCost = 20,
+	RollCooldown = 0.8,
+	RollDoubleTap = 0.3, -- segundos entre os dois toques -- patas peludas e carga na parte de baixo da tela (1ª pessoa)
 }
 
 -- Mapa (gerado por código em World/MapBuilder) ---------------------------
@@ -98,6 +134,18 @@ Config.Map = {
 	SunflowerChance = 0.3, -- parte das flores vira girassol
 	CrystalCount = 14, -- cristais roxos decorativos no bosque
 	BridgeHeight = 72, -- altura das pontes entre as árvores-colmeia
+	-- Penhascos com casinhas de favo, pontes e cachoeira (paisagem, sem coleta).
+	-- O primeiro pilar de cada grupo é o mais alto (tem a cachoeira).
+	CliffGroups = {
+		{
+			Center = Vector3.new(-900, 0, -150),
+			Pillars = { Vector3.new(0, 0, 0), Vector3.new(55, 0, 95), Vector3.new(-25, 0, 185) },
+		},
+		{
+			Center = Vector3.new(880, 0, 250),
+			Pillars = { Vector3.new(0, 0, 0), Vector3.new(-40, 0, -100), Vector3.new(35, 0, -195) },
+		},
+	},
 	RoyalHive = {
 		Position = Vector3.new(0, 0, -880), -- palácio da Colmeia Real (norte do mapa)
 		PlateauHeight = 70,
@@ -123,7 +171,8 @@ Config.DayNight = {
 	TransitionDuration = 30,
 	WarnBeforeNight = 60,
 	StartClockTime = 9, -- hora em que o servidor começa (9h da manhã)
-	NightRareChanceMultiplier = 2, -- Etapa C
+	NightRareChanceMultiplier = 2, -- favos raros renascem 2× mais rápido à noite
+	NightRareHoneyBonus = 60, -- mel extra por favo raro ENTREGUE à noite
 }
 
 -- Saúde, derrota e penalidade ---------------------------------------------
@@ -135,8 +184,15 @@ Config.Health = {
 	RegenPerSecondInSafeZone = 4, -- recupera vida em área protegida
 }
 
+-- Regra única de derrota: perde PARTE da carga (cai no chão para recuperar).
+-- Colmeia, melhorias e mel depositado nunca são tocados.
+Config.Defeat = {
+	CargoLossFraction = 0.5, -- metade (arredondada para cima) de cada tipo carregado
+}
+
+-- Penalidade antiga na célula em construção: desligada (regra única acima).
 Config.DeathPenalty = {
-	Enabled = true,
+	Enabled = false,
 	-- Só se a morte for causada por predador. Pontos percentuais em UMA célula inacabada.
 	PredatorBuildProgressLoss = 5,
 }
@@ -186,7 +242,7 @@ Config.Predators = {
 }
 
 -- Melhorias compradas com mel ----------------------------------------------
-Config.UpgradeOrder = { "Velocidade", "Capacidade", "Resistencia" }
+Config.UpgradeOrder = { "Velocidade", "Capacidade", "Resistencia", "Sorte", "Folego" }
 
 Config.Upgrades = {
 	-- Velocidade: +6% de velocidade de voo por nível.
@@ -212,6 +268,22 @@ Config.Upgrades = {
 		BaseCost = 100,
 		CostGrowth = 1.7,
 		BonusPerLevel = 10,
+	},
+	-- Sorte: +6% de chance por nível de coletar em dobro.
+	Sorte = {
+		DisplayName = "Sorte",
+		MaxLevel = 5,
+		BaseCost = 120,
+		CostGrowth = 1.7,
+		BonusPerLevel = 0.06,
+	},
+	-- Fôlego: +20 de fôlego máximo da arrancada por nível.
+	Folego = {
+		DisplayName = "Fôlego",
+		MaxLevel = 5,
+		BaseCost = 90,
+		CostGrowth = 1.6,
+		BonusPerLevel = 20,
 	},
 }
 
@@ -276,7 +348,8 @@ Config.Quests = {
 	{ Kind = "Melhoria", Goal = 1, Text = "Compre uma melhoria", Honey = 50, XP = 60 },
 	{ Kind = "CombMedio", Goal = 2, Text = "Pegue favos médios no bosque", Honey = 80, XP = 100 },
 	{ Kind = "Nectar", Goal = 50, Text = "Colete muito néctar", Honey = 80, XP = 100 },
-	{ Kind = "CombRaro", Goal = 1, Text = "Traga um favo raro", Honey = 150, XP = 200 },
+	{ Kind = "RaroEntregue", Goal = 1, Text = "Leve um favo raro até a sua colmeia", Honey = 150, XP = 200 },
+	{ Kind = "Rainha", Goal = 1, Text = "Cumpra um pedido da Rainha", Honey = 180, XP = 220 },
 	{ Kind = "Celula", Goal = 3, Text = "Expanda a colmeia", Honey = 200, XP = 250 },
 	{ Kind = "Mel", Goal = 400, Text = "Encha a colmeia de mel", Honey = 250, XP = 300 },
 }
@@ -286,7 +359,7 @@ Config.QuestRepeatGrowth = 0.5 -- +50% na meta e na recompensa a cada volta
 -- Arte: cores dos modelos 3D importados (o jogo recolore cada peça pelo nome).
 -- Uma peça "Corpo_3" usa a entrada "Corpo".
 Config.Art = {
-	BeeYawDegrees = 0, -- se a abelha importada voar de costas, use 180
+	BeeYawDegrees = 180, -- o modelo do pacote olha para +Z; 180 deixa a cabeça na frente (-Z)
 	-- Abelhas operárias (só visual, no cliente): voam entre a colmeia e as flores.
 	WorkerBeesPerHive = 3,
 	WorkerBeesRoyal = 5,
@@ -386,6 +459,362 @@ Config.Leaderboard = {
 	StoreName = "RankingMel_v1",
 }
 
+-- Poções do Besouro mercador (temporárias, compradas com mel) ----------------
+Config.PotionOrder = { "Velocidade", "Dobro", "Mochila" }
+Config.Potions = {
+	Velocidade = {
+		DisplayName = "Poção de Velocidade",
+		Icon = "⚡",
+		Description = "+30% de velocidade de voo",
+		Price = 120,
+		Duration = 180,
+		SpeedBonus = 0.3,
+	},
+	Dobro = {
+		DisplayName = "Néctar em Dobro",
+		Icon = "🌼",
+		Description = "Cada flor dá o dobro de néctar",
+		Price = 150,
+		Duration = 180,
+		NectarMultiplier = 2,
+	},
+	Mochila = {
+		DisplayName = "Mochila Extra",
+		Icon = "🎒",
+		Description = "+6 de espaço na carga",
+		Price = 100,
+		Duration = 240,
+		CapacityBonus = 6,
+	},
+}
+
+-- Trocas do Besouro: favos da CARGA viram mel ou poção.
+Config.Trades = {
+	{
+		Id = "ComumMel",
+		Text = "5 favos de cera → 70 mel",
+		Rarity = "Comum",
+		Amount = 5,
+		Honey = 70,
+		Potion = "",
+	},
+	{
+		Id = "MedioPocao",
+		Text = "3 favos médios → Poção de Velocidade",
+		Rarity = "Medio",
+		Amount = 3,
+		Honey = 0,
+		Potion = "Velocidade",
+	},
+	{
+		Id = "RaroMel",
+		Text = "1 favo raro → 300 mel",
+		Rarity = "Raro",
+		Amount = 1,
+		Honey = 300,
+		Potion = "",
+	},
+}
+Config.Merchant = { TalkDistance = 40, Position = Vector3.new(-20, 4, -12) }
+
+-- Evento: chuva de pólen (flores douradas dão mais néctar) -------------------
+Config.Events = {
+	FirstPollenAfter = 120, -- segundos depois do servidor abrir
+	PollenInterval = 420, -- entre um evento e outro
+	PollenDuration = 90,
+	GoldenFlowers = 8,
+	GoldenMultiplier = 3,
+}
+
+-- Mascotes: abelhinhas que seguem você (só visual) ---------------------------
+Config.PetOrder = { "Dourada", "Azul", "Rosa" }
+Config.Pets = {
+	Dourada = { DisplayName = "Abelhinha Dourada", Price = 300, Color = Color3.fromRGB(255, 200, 40) },
+	Azul = { DisplayName = "Abelhinha Azul", Price = 300, Color = Color3.fromRGB(90, 160, 255) },
+	Rosa = { DisplayName = "Abelhinha Rosa", Price = 300, Color = Color3.fromRGB(255, 130, 190) },
+}
+
+-- Conquistas: Stat = contador salvo no perfil (profile.Stats) ----------------
+Config.Achievements = {
+	{
+		Id = "PrimeiroNectar",
+		Name = "Primeiro gole",
+		Desc = "Colete néctar pela primeira vez",
+		Icon = "🌼",
+		Stat = "Nectar",
+		Goal = 1,
+		Honey = 20,
+	},
+	{
+		Id = "Coletora",
+		Name = "Coletora",
+		Desc = "Colete 300 de néctar",
+		Icon = "🍯",
+		Stat = "Nectar",
+		Goal = 300,
+		Honey = 150,
+	},
+	{
+		Id = "MestreNectar",
+		Name = "Mestre do néctar",
+		Desc = "Colete 3.000 de néctar",
+		Icon = "🏆",
+		Stat = "Nectar",
+		Goal = 3000,
+		Honey = 800,
+	},
+	{
+		Id = "PrimeiroFavo",
+		Name = "Favo na mão",
+		Desc = "Colete um favo",
+		Icon = "🔶",
+		Stat = "Comb",
+		Goal = 1,
+		Honey = 20,
+	},
+	{
+		Id = "CacadoraRaros",
+		Name = "Caçadora de raros",
+		Desc = "Colete 5 favos raros",
+		Icon = "💎",
+		Stat = "CombRaro",
+		Goal = 5,
+		Honey = 500,
+	},
+	{
+		Id = "Construtora",
+		Name = "Construtora",
+		Desc = "Termine 5 células",
+		Icon = "🔨",
+		Stat = "Celula",
+		Goal = 5,
+		Honey = 200,
+	},
+	{
+		Id = "Arquiteta",
+		Name = "Arquiteta",
+		Desc = "Termine 20 células",
+		Icon = "🏛️",
+		Stat = "Celula",
+		Goal = 20,
+		Honey = 1000,
+	},
+	{
+		Id = "DoceFortuna",
+		Name = "Doce fortuna",
+		Desc = "Entregue 2.000 de mel",
+		Icon = "💰",
+		Stat = "Mel",
+		Goal = 2000,
+		Honey = 400,
+	},
+	{
+		Id = "Turbinada",
+		Name = "Turbinada",
+		Desc = "Compre 5 melhorias",
+		Icon = "⚡",
+		Stat = "Melhoria",
+		Goal = 5,
+		Honey = 300,
+	},
+	{
+		Id = "AmigaDaRainha",
+		Name = "Amiga da Rainha",
+		Desc = "Cumpra 3 pedidos da Rainha",
+		Icon = "👑",
+		Stat = "Rainha",
+		Goal = 3,
+		Honey = 600,
+	},
+	{
+		Id = "Colonizadora",
+		Name = "Colonizadora",
+		Desc = "Entre ou funde uma colônia",
+		Icon = "🐝",
+		Stat = "Colonia",
+		Goal = 1,
+		Honey = 100,
+	},
+	{
+		Id = "Freguesa",
+		Name = "Freguesa",
+		Desc = "Faça 3 trocas com o Besouro",
+		Icon = "🐞",
+		Stat = "Troca",
+		Goal = 3,
+		Honey = 200,
+	},
+}
+Config.StatKeys = {
+	"Nectar",
+	"Comb",
+	"CombMedio",
+	"CombRaro",
+	"Mel",
+	"Celula",
+	"Melhoria",
+	"Rainha",
+	"Colonia",
+	"Troca",
+	"RaroEntregue",
+	"RaroNoturno",
+}
+
+-- Clima ------------------------------------------------------------------
+-- Chuva: flores renascem mais rápido. Neblina: predadores enxergam menos.
+Config.Weather = {
+	MinDuration = 150,
+	MaxDuration = 270,
+	Chances = { Limpo = 0.6, Chuva = 0.25, Neblina = 0.15 },
+	RainRespawnMultiplier = 0.5,
+	FogPredatorVision = 0.6,
+}
+
+-- Lugares novos do bosque ----------------------------------------------------
+Config.Places = {
+	Cave = { Position = Vector3.new(-600, 0, 400), Radius = 42 },
+	Lake = { Position = Vector3.new(600, 0, -320), Radius = 70 },
+}
+
+-- Libélulas do lago: patrulham em círculo e dão rasantes em linha reta.
+Config.Predators.Libelula = {
+	Count = 2,
+	PatrolRadius = 45,
+	PatrolHeight = 14,
+	PatrolSpeed = 1.1, -- radianos por segundo
+	DetectionRange = 60,
+	TerritoryRadius = 110,
+	AttackWindup = 0.8,
+	DashSpeed = 120,
+	DashOvershoot = 20,
+	StrikeRadius = 7,
+	AttackDamage = 18,
+	AttackCooldown = 3,
+	DayActivityMultiplier = 0.8,
+	NightActivityMultiplier = 1.3,
+}
+
+-- Vespa Gigante: chefe que aparece à noite na Colmeia Real ------------------
+Config.Boss = {
+	BaseHealth = 250,
+	HealthPerPlayer = 150,
+	HitDamage = 15, -- dano de cada ataque de abelha (clique) na vespa
+	HitRange = 18,
+	AttackInterval = 4,
+	AttackWindup = 1.2,
+	DiveSpeed = 90,
+	StrikeRadius = 9,
+	AttackDamage = 30,
+	TargetRange = 140,
+	OrbitRadius = 60,
+	OrbitHeight = 45,
+	RewardHoney = 400,
+	RewardXP = 250,
+}
+
+-- Colmeia que evolui: enfeites novos conforme as células prontas.
+Config.HiveTiers = {
+	{ Cells = 5, Name = "Potes dourados" },
+	{ Cells = 12, Name = "Coroa da colmeia" },
+	{ Cells = 24, Name = "Aura de mel" },
+	{ Cells = 37, Name = "Colmeia lendária" },
+}
+
+Config.TutorialReward = 100
+
+-- Configurações do jogador (salvas no perfil).
+Config.DefaultSettings = {
+	Music = true,
+	MusicLevel = 0.6, -- 0 a 1 (volume dos ambientes)
+	Sensitivity = 1, -- 0.5 a 2 (mouse)
+	ReducedMotion = false, -- sem inclinação, sem FOV de velocidade, sem balanço
+	Sfx = 0.8, -- 0 a 1
+	Trail = true,
+	CameraRoll = true,
+	Quality = "Alta", -- "Alta" ou "Baixa"
+	ThirdPerson = false, -- câmera atrás da abelha (tecla V)
+}
+
+-- Renascer: recomeça a colmeia em troca de um bônus de mel PERMANENTE.
+Config.Rebirth = {
+	MinLevel = 10,
+	BaseCost = 3000, -- mel; o custo cresce a cada renascimento
+	CostGrowth = 1.8,
+	HoneyBonus = 0.25, -- +25% de mel por renascimento (entregas e produção)
+}
+
+-- Operárias contratadas: produzem mel sozinhas na sua colmeia.
+Config.Workers = {
+	Max = 10,
+	BaseCost = 250,
+	CostGrowth = 1.45,
+	HoneyPerMinute = 3,
+	StorageEach = 20,
+}
+
+-- Amigos: jogar com um amigo do Roblox no servidor rende mais mel.
+Config.FriendBonus = 0.10
+
+-- Missões diárias: 3 sorteadas por dia; o prêmio entra sozinho ao completar.
+Config.DailyQuests = {
+	Count = 3,
+	Pool = {
+		{ Kind = "Nectar", Text = "Colete 60 de néctar", Goal = 60, Honey = 150 },
+		{ Kind = "Comb", Text = "Colete 10 favos", Goal = 10, Honey = 150 },
+		{ Kind = "CombMedio", Text = "Colete 4 favos médios", Goal = 4, Honey = 200 },
+		{ Kind = "Mel", Text = "Entregue 250 de mel", Goal = 250, Honey = 200 },
+		{ Kind = "Celula", Text = "Termine 1 célula", Goal = 1, Honey = 180 },
+		{ Kind = "Bau", Text = "Abra 2 baús do tesouro", Goal = 2, Honey = 200 },
+		{ Kind = "Corrida", Text = "Complete a corrida de anéis", Goal = 1, Honey = 250 },
+		{ Kind = "Troca", Text = "Faça 1 troca com o Besouro", Goal = 1, Honey = 120 },
+	},
+}
+
+-- Códigos (digite nas Configurações). Chave em MAIÚSCULAS.
+Config.Codes = {
+	BEMVINDO = { Honey = 250 },
+	ZUMBIDO = { Honey = 500 },
+	ASAS = { Potion = "Velocidade" },
+	FAVODEMEL = { Honey = 1000 },
+}
+
+-- Baús do tesouro escondidos pelo mapa (cada jogador abre de novo depois do tempo).
+Config.Chests = {
+	Count = 10,
+	Cooldown = 20 * 60,
+	MinHoney = 60,
+	MaxHoney = 220,
+	PotionChance = 0.2,
+}
+
+-- Ilha nas Nuvens: flores especiais (dão mais néctar) lá no alto.
+Config.SkyIsland = {
+	Position = Vector3.new(150, 200, 365), -- entre duas árvores-colmeia (caminho livre)
+	Radius = 55,
+	Flowers = 8,
+	NectarMultiplier = 2,
+}
+
+-- Anéis de impulso: atravessar dá velocidade. Também formam a corrida
+-- da praça até a Ilha nas Nuvens (na ordem).
+Config.Rings = {
+	Count = 12,
+	Radius = 9,
+	BoostMultiplier = 1.8,
+	BoostDuration = 1.6,
+	RaceHoney = 120,
+	RaceCooldown = 10 * 60, -- prêmio de corrida no máximo a cada X segundos
+	RaceTimeout = 90,
+}
+
+-- Flor arco-íris: aparece de vez em quando; quem pegar primeiro ganha muito néctar.
+Config.Rainbow = {
+	FirstAfter = 180,
+	Interval = 300,
+	Duration = 120,
+	NectarMultiplier = 8,
+}
+
 -- Sons: cole aqui IDs de áudio da Loja do Criador (ex.: "rbxassetid://123").
 -- Vazio = sem som (o jogo funciona normalmente).
 Config.Sounds = {
@@ -413,18 +842,25 @@ Config.Progression = {
 }
 
 -- Acessórios cosméticos (sem Robux; comprados com mel) -----------------------
-Config.CosmeticOrder = { "Oculos", "Chapeu", "Lenco" }
+Config.CosmeticOrder = { "Oculos", "Chapeu", "Lenco", "Coroa", "Aureola", "Laco" }
 Config.Cosmetics = {
 	Oculos = { DisplayName = "Óculos de voo", Price = 150 },
 	Chapeu = { DisplayName = "Chapéu", Price = 200 },
 	Lenco = { DisplayName = "Lenço vermelho", Price = 120 },
+	Coroa = { DisplayName = "Coroa dourada", Price = 1500 },
+	Aureola = { DisplayName = "Auréola de luz", Price = 900 },
+	Laco = { DisplayName = "Laço rosa", Price = 250 },
 }
 
 -- Salvamento --------------------------------------------------------------
 Config.Data = {
 	DataStoreName = "ReinoDasAbelhas_v1",
-	AutosaveInterval = 120,
+	AutosaveInterval = 60,
 	MaxRetries = 3,
+	-- Trava de sessão: um perfil aberto em outro servidor há menos de
+	-- SessionLockSeconds não é carregado para escrita (evita sobrescrever).
+	SessionLockSeconds = 150,
+	SessionWaitAttempts = 6, -- tentativas de 5 s esperando a outra sessão salvar
 }
 
 -- Depuração ---------------------------------------------------------------

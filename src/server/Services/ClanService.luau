@@ -24,6 +24,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Log = require(Shared.Util.Log)
 local Remotes = require(Shared.Remotes)
+local Levels = require(Shared.Levels)
 
 local Notifier = require(script.Parent.Parent.Lib.Notifier)
 local PlayerDataService = require(script.Parent.PlayerDataService)
@@ -64,6 +65,37 @@ function ClanService.HasOnlineMate(player: Player): boolean
 	return #membersOf(clanOf(player)) >= 2
 end
 
+-- Amigos do Roblox no mesmo servidor (cache: IsFriendsWith é lento).
+local friendCache: { [Player]: { [Player]: boolean } } = {}
+
+local function cacheFriends(player: Player)
+	friendCache[player] = friendCache[player] or {}
+	for _, other in Players:GetPlayers() do
+		if other ~= player then
+			local ok, isFriend = pcall(function()
+				return (player :: any):IsFriendsWithAsync(other.UserId)
+			end)
+			local value = ok and isFriend == true
+			friendCache[player][other] = value
+			friendCache[other] = friendCache[other] or {}
+			friendCache[other][player] = value
+		end
+	end
+end
+
+function ClanService.HasFriendOnline(player: Player): boolean
+	local list = friendCache[player]
+	if not list then
+		return false
+	end
+	for other, isFriend in list do
+		if isFriend and other.Parent then
+			return true
+		end
+	end
+	return false
+end
+
 function ClanService.Summary(player: Player)
 	local mine = clanOf(player)
 	local members = {}
@@ -93,43 +125,57 @@ function ClanService.Summary(player: Player)
 end
 
 -- Plaquinha com o nome da colônia em cima da abelha (os outros veem).
+-- Plaquinha em cima da abelha (os outros veem):
+--   [Colônia] Nome
+--   Nv 12 · ⭐2
 local function updateTag(player: Player)
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
-	if not root then
+	if not root or not PlayerDataService.IsLoaded(player) then
 		return
 	end
-	local tag = root:FindFirstChild("TagColonia") :: BillboardGui?
-	local clan = clanOf(player)
-	if clan == "" then
-		if tag then
-			tag:Destroy()
-		end
-		return
-	end
+	local tag = root:FindFirstChild("Plaquinha") :: BillboardGui?
 	if not tag then
 		local gui = Instance.new("BillboardGui")
-		gui.Name = "TagColonia"
-		gui.Size = UDim2.fromScale(10, 1.6)
-		gui.StudsOffset = Vector3.new(0, 4.5, 0)
-		gui.MaxDistance = 120
+		gui.Name = "Plaquinha"
+		gui.Size = UDim2.fromScale(11, 2.6)
+		gui.StudsOffset = Vector3.new(0, 4.8, 0)
+		gui.MaxDistance = 140
 		gui.LightInfluence = 0
 		gui.PlayerToHideFrom = player
-		local text = Instance.new("TextLabel")
-		text.Name = "Texto"
-		text.Size = UDim2.fromScale(1, 1)
-		text.BackgroundTransparency = 1
-		text.Font = Enum.Font.GothamBold
-		text.TextScaled = true
-		text.TextColor3 = Color3.fromRGB(255, 205, 80)
-		text.TextStrokeTransparency = 0.3
-		text.Parent = gui
+		local name = Instance.new("TextLabel")
+		name.Name = "Nome"
+		name.Size = UDim2.fromScale(1, 0.58)
+		name.BackgroundTransparency = 1
+		name.Font = Enum.Font.GothamBold
+		name.TextScaled = true
+		name.TextColor3 = Color3.fromRGB(255, 248, 230)
+		name.TextStrokeTransparency = 0.3
+		name.Parent = gui
+		local info = Instance.new("TextLabel")
+		info.Name = "Info"
+		info.Position = UDim2.fromScale(0, 0.6)
+		info.Size = UDim2.fromScale(1, 0.4)
+		info.BackgroundTransparency = 1
+		info.Font = Enum.Font.GothamBold
+		info.TextScaled = true
+		info.TextColor3 = Color3.fromRGB(255, 205, 80)
+		info.TextStrokeTransparency = 0.3
+		info.Parent = gui
 		gui.Parent = root
 		tag = gui
 	end
-	local label = (tag :: BillboardGui):FindFirstChild("Texto") :: TextLabel
-	label.Text = `[{clan}] {player.DisplayName}`
+	local profile = PlayerDataService.Get(player)
+	local clan = profile.Clan
+	local nameLabel = (tag :: BillboardGui):FindFirstChild("Nome") :: TextLabel
+	local infoLabel = (tag :: BillboardGui):FindFirstChild("Info") :: TextLabel
+	local crown = if profile.Crowned then "👑 " else ""
+	nameLabel.Text = crown .. (if clan ~= "" then `[{clan}] {player.DisplayName}` else player.DisplayName)
+	local level = Levels.FromXP(profile.XP)
+	infoLabel.Text = `Nv {level}` .. (if profile.Rebirths > 0 then ` · ⭐{profile.Rebirths}` else "")
 end
+
+ClanService.UpdateTag = updateTag
 
 -- Todos veem a lista de colônias: avisa todo mundo quando algo muda.
 local function changedForEveryone()
@@ -214,6 +260,7 @@ local function handle(player: Player, action: unknown, value: unknown)
 		end
 		profile.Honey -= Config.Clan.CreateCost
 		profile.Clan = name
+		profile.Stats.Colonia = 1
 		Notifier.Notify(player, `Colônia {name} fundada! 🐝`, "ok")
 		changedForEveryone()
 	elseif action == "Entrar" then
@@ -228,6 +275,7 @@ local function handle(player: Player, action: unknown, value: unknown)
 		end
 		-- Usa a grafia de quem já está lá (o nome já passou pelo filtro).
 		profile.Clan = clanOf(members[1])
+		profile.Stats.Colonia = 1
 		Notifier.Notify(player, `Você entrou na colônia {profile.Clan}!`, "ok")
 		for _, member in members do
 			Notifier.Notify(member, `{player.DisplayName} entrou na colônia!`, "ok")
@@ -240,6 +288,14 @@ function ClanService:Init() end
 
 function ClanService:Start()
 	Remotes.Get("RequestClan").OnServerEvent:Connect(handle)
+	local lastTag: { [Player]: number } = {}
+	Notifier.OnChanged:Connect(function(player)
+		local now = os.clock()
+		if now - (lastTag[player] or 0) > 1 then
+			lastTag[player] = now
+			updateTag(player)
+		end
+	end)
 	local function onPlayer(player: Player)
 		player.CharacterAdded:Connect(function()
 			task.wait(1) -- espera o corpo de abelha ser montado
@@ -254,8 +310,18 @@ function ClanService:Start()
 	for _, player in Players:GetPlayers() do
 		onPlayer(player)
 	end
+	Players.PlayerAdded:Connect(function(player)
+		task.spawn(cacheFriends, player)
+	end)
+	for _, player in Players:GetPlayers() do
+		task.spawn(cacheFriends, player)
+	end
 	Players.PlayerRemoving:Connect(function(player)
 		lastRequest[player] = nil
+		friendCache[player] = nil
+		for _, list in friendCache do
+			list[player] = nil
+		end
 		task.defer(changedForEveryone)
 	end)
 	Log.info("ClanService", "pronto")

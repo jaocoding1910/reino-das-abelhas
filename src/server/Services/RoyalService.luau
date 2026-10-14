@@ -15,7 +15,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
@@ -28,6 +28,7 @@ local AssetLibrary = require(script.Parent.Parent.Lib.AssetLibrary)
 local Notifier = require(script.Parent.Parent.Lib.Notifier)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local ProgressionService = require(script.Parent.ProgressionService)
+local QuestService = require(script.Parent.QuestService)
 local WorldService = require(script.Parent.WorldService)
 
 local RoyalService = {}
@@ -300,6 +301,7 @@ local function handle(player: Player, action: unknown)
 		Notifier.Notify(player, `👑 A Rainha agradece! +{royal.Honey} mel · +{royal.XP} XP`, "ok")
 		Remotes.Get("Effect"):FireAllClients("nivel", queenPosition, player.UserId)
 		ProgressionService.AddXP(player, royal.XP)
+		QuestService.Add(player, "Rainha", 1) -- conta para missões, conquistas e Rei da Colmeia
 	else
 		return
 	end
@@ -323,12 +325,39 @@ function RoyalService:Start()
 	local _, root = buildQueen(folder, cf)
 	label(root)
 
-	-- Flutua devagar (as peças soldadas seguem a raiz).
-	TweenService:Create(
-		root,
-		TweenInfo.new(2.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
-		{ CFrame = cf * CFrame.new(0, 1.4, 0) }
-	):Play()
+	-- Flutua devagar e vira o rosto para a abelha mais perto (as peças
+	-- soldadas seguem a raiz). Gira no máximo ~90° para os lados, então ela
+	-- nunca dá as costas para quem chega pela frente do salão.
+	local yaw = 0
+	local accumulator = 0
+	RunService.Heartbeat:Connect(function(dt)
+		accumulator += dt
+		if accumulator < 1 / 20 then
+			return
+		end
+		local step = accumulator
+		accumulator = 0
+		local nearest, nearestDistance = nil, 110
+		for _, other in Players:GetPlayers() do
+			local character = other.Character
+			local otherRoot = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if otherRoot then
+				local distance = (otherRoot.Position - cf.Position).Magnitude
+				if distance < nearestDistance then
+					nearest, nearestDistance = otherRoot.Position, distance
+				end
+			end
+		end
+		local targetYaw = 0
+		if nearest then
+			local rel = cf:PointToObjectSpace(nearest)
+			-- A frente é -Z: ângulo que leva -Z até o jogador.
+			targetYaw = math.clamp(math.atan2(-rel.X, -rel.Z), -1.6, 1.6)
+		end
+		yaw += (targetYaw - yaw) * math.clamp(step * 2.5, 0, 1)
+		local bob = (math.sin(os.clock() * 1.3) + 1) * 0.7
+		root.CFrame = cf * CFrame.new(0, bob, 0) * CFrame.Angles(0, yaw, 0)
+	end)
 
 	-- O cliente abre a conversa ao acionar este aviso (atributo "Rainha").
 	local prompt = Instance.new("ProximityPrompt")

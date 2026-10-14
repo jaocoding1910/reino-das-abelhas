@@ -16,12 +16,16 @@ local Log = require(Shared.Util.Log)
 local Levels = require(Shared.Levels)
 local Remotes = require(Shared.Remotes)
 
+local AchievementService = require(script.Parent.AchievementService)
 local ClanService = require(script.Parent.ClanService)
+local CrownService = require(script.Parent.CrownService)
 local CosmeticService = require(script.Parent.CosmeticService)
 local HiveService = require(script.Parent.HiveService)
 local InventoryService = require(script.Parent.InventoryService)
 local Notifier = require(script.Parent.Parent.Lib.Notifier)
 local PlayerDataService = require(script.Parent.PlayerDataService)
+local MerchantService = require(script.Parent.MerchantService)
+local PetService = require(script.Parent.PetService)
 local QuestService = require(script.Parent.QuestService)
 local RoyalService = require(script.Parent.RoyalService)
 local UpgradeService = require(script.Parent.UpgradeService)
@@ -80,6 +84,27 @@ function StateService.Build(player: Player)
 		Royal = RoyalService.Summary(player),
 		Clan = ClanService.Summary(player),
 		DailyStreak = profile.DailyStreak,
+		Achievements = AchievementService.Summary(player),
+		Pets = PetService.Summary(player),
+		Shop = MerchantService.Summary(player),
+		HoneyEarned = profile.HoneyEarned,
+		TutorialDone = profile.TutorialDone,
+		Settings = profile.Settings,
+		HiveTier = HiveService.Tier(completed),
+		Rebirths = profile.Rebirths,
+		RebirthCost = HiveService.RebirthCost(profile.Rebirths),
+		RebirthMinLevel = Config.Rebirth.MinLevel,
+		HoneyMultiplier = HiveService.HoneyMultiplier(profile),
+		Workers = profile.Workers,
+		WorkersMax = Config.Workers.Max,
+		WorkerCost = HiveService.WorkerCost(profile.Workers),
+		HoneyPerMinute = math.floor(HiveService.HoneyPerMinute(profile) * 10 + 0.5) / 10,
+		Daily = profile.Daily,
+		BestRace = profile.BestRace,
+		Crown = CrownService.Summary(player),
+		-- Sem DataStore (Studio sem API ou falha ao carregar): nada é salvo.
+		TestMode = not PlayerDataService.CanSave(player),
+		NightRareBonus = Config.DayNight.NightRareHoneyBonus,
 	}
 end
 

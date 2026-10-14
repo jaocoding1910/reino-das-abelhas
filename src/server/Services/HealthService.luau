@@ -8,17 +8,15 @@
 	- Vida máxima = Config.Health.Max + melhoria de Resistência.
 	- Proteção ao nascer (Config.Health.SpawnProtection), cancelada ao atacar.
 	- Em área protegida a vida se recupera aos poucos.
-	- Ao chegar a zero (UMA vez por derrota, garantido pela trava `dying`):
-	    1. a carga transportada cai no chão (DropService);
-	    2. se foi um predador e a penalidade estiver ligada, UMA célula
-	       inacabada perde Config.DeathPenalty.PredatorBuildProgressLoss pontos
-	       (nunca abaixo de zero; células concluídas nunca são tocadas);
-	    3. o jogador recebe a explicação das perdas;
-	    4. renasce na própria colmeia depois de Config.Health.RespawnDelay.
-	- Derrota por outro jogador: só perde a carga.
-
-	Ideia futura (não implementada, ver docs/ROADMAP.md): vidas de expedição
-	que recarregam com o tempo. Não combinar com esta penalidade sem rebalancear.
+	- Regra ÚNICA de derrota (predador, jogador ou "Redefinir"), aplicada uma
+	  vez só (trava `dying`):
+	    1. perde Config.Defeat.CargoLossFraction de cada tipo carregado;
+	    2. o que caiu fica no chão (DropService) para ser recuperado;
+	    3. colmeia, melhorias e mel depositado ficam intactos;
+	    4. a tela de derrota lista exatamente o que caiu;
+	    5. renasce na própria colmeia, com proteção breve.
+	- Sem vidas nem espera extra. Desconectar: a carga nunca é salva, então
+	  não há duplicação.
 ]]
 
 local Players = game:GetService("Players")
@@ -31,7 +29,6 @@ local Regions = require(Shared.Regions)
 local Remotes = require(Shared.Remotes)
 
 local DropService = require(script.Parent.DropService)
-local HiveService = require(script.Parent.HiveService)
 local InventoryService = require(script.Parent.InventoryService)
 local Notifier = require(script.Parent.Parent.Lib.Notifier)
 local PlayerDataService = require(script.Parent.PlayerDataService)
@@ -77,6 +74,24 @@ function HealthService.CancelSpawnProtection(player: Player)
 	player:SetAttribute("ProtectedUntil", 0)
 end
 
+-- "Caiu no chão: 3 néctar, 1 Favo Real." (ou "Você não carregava nada.")
+function HealthService.DescribeLoss(lost: any): string
+	local parts = {}
+	if lost.Nectar > 0 then
+		table.insert(parts, `{lost.Nectar} néctar`)
+	end
+	for _, rarity in { "Comum", "Medio", "Raro" } do
+		local amount = lost.Combs[rarity] or 0
+		if amount > 0 then
+			table.insert(parts, `{amount} {Config.Rarities[rarity].DisplayName}`)
+		end
+	end
+	if #parts == 0 then
+		return "Você não carregava nada: nada foi perdido."
+	end
+	return `Caiu no chão (dá para recuperar): {table.concat(parts, ", ")}.`
+end
+
 local function die(player: Player, source: DamageSource, attacker: Player?)
 	if dying[player] then
 		return -- trava: perdas aplicadas uma única vez por derrota
@@ -87,22 +102,20 @@ local function die(player: Player, source: DamageSource, attacker: Player?)
 	local root = rootOf(player)
 	local position = if root then root.Position else Vector3.zero
 
-	-- 1. Carga cai uma vez (Take esvazia; chamar de novo devolveria vazio).
-	local cargo = InventoryService.Take(player)
-	DropService.Spawn(position, cargo)
+	-- Parte da carga cai uma vez (a trava acima impede repetir).
+	local lost = InventoryService.TakeFraction(player, Config.Defeat.CargoLossFraction)
+	DropService.Spawn(position, lost)
 
-	-- 2. Penalidade de construção (só predador).
 	local lines = { "Você foi derrotado!" }
-	table.insert(lines, "Perdeu a carga que levava (ela ficou no chão por um tempo).")
-	if source == "Predador" and Config.DeathPenalty.Enabled then
-		local lost = HiveService.ApplyPredatorPenalty(player, Config.DeathPenalty.PredatorBuildProgressLoss)
-		if lost > 0 then
-			table.insert(lines, `A célula em construção perdeu {lost} pontos de progresso.`)
-		end
-	elseif source == "Jogador" and attacker then
-		Notifier.Notify(attacker, `Você derrotou {player.DisplayName}! A carga dele caiu no chão.`, "ok")
+	table.insert(lines, HealthService.DescribeLoss(lost))
+	if source == "Jogador" and attacker then
+		Notifier.Notify(
+			attacker,
+			`Você derrotou {player.DisplayName}! Parte da carga dele caiu no chão.`,
+			"ok"
+		)
 	end
-	table.insert(lines, "Mel, células e melhorias continuam salvos.")
+	table.insert(lines, "Colmeia, melhorias e mel guardado continuam salvos.")
 
 	Remotes.Get("Effect"):FireAllClients("derrota", position)
 	Notifier.Notify(player, table.concat(lines, "\n"), "derrota")
@@ -145,11 +158,13 @@ local function onCharacter(player: Player, character: Model)
 
 	local humanoid = character:WaitForChild("Humanoid") :: Humanoid
 	humanoid.Died:Connect(function()
-		-- Morreu por outro motivo (ex.: botão "Redefinir"): perde só a carga.
+		-- Morreu por outro motivo (ex.: botão "Redefinir"): mesma regra única.
 		if not dying[player] then
 			dying[player] = true
 			local root = rootOf(player)
-			DropService.Spawn(if root then root.Position else Vector3.zero, InventoryService.Take(player))
+			local lost = InventoryService.TakeFraction(player, Config.Defeat.CargoLossFraction)
+			DropService.Spawn(if root then root.Position else Vector3.zero, lost)
+			Notifier.Notify(player, HealthService.DescribeLoss(lost), "info")
 		end
 	end)
 end

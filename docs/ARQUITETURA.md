@@ -27,6 +27,8 @@ Coleta, entrega e construção usam **ProximityPrompt**: funciona igual no PC (t
 
 Os serviços avisam mudanças com `Lib/Notifier` (`Changed` e `Notify`). O `StateService` escuta e envia o estado completo ao HUD. Assim nenhum serviço depende do outro em ciclo.
 
+**Salto 22:** `CrownService` (título Rei/Rainha da Colmeia, só lê o perfil), `Shared/CombArt` (geometria do favo carregado, usada pelo servidor no corpo e pelo cliente no `ViewmodelController`) e a trava de sessão do `PlayerDataService` (`_Sessao` no próprio registro do DataStore). O viewmodel vive dentro da Camera do cliente e nunca replica.
+
 ## Ciclo de vida
 
 Servidor e cliente usam o mesmo `Util/Loader`:

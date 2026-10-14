@@ -27,6 +27,7 @@ local Log = require(Shared.Util.Log)
 local Types = require(Shared.Types)
 
 local Hex = require(script.Parent.Parent.World.Hex)
+local Levels = require(Shared.Levels)
 local ClanService = require(script.Parent.ClanService)
 local Notifier = require(script.Parent.Parent.Lib.Notifier)
 local InventoryService = require(script.Parent.InventoryService)
@@ -279,12 +280,178 @@ local function buildCell(cf: CFrame, slot: number, kind: string, progress: numbe
 	return model
 end
 
+-- Nível de evolução da colmeia (0 a #Config.HiveTiers) pelo número de células.
+function HiveService.Tier(completed: number): number
+	local tier = 0
+	for i, info in Config.HiveTiers do
+		if completed >= info.Cells then
+			tier = i
+		end
+	end
+	return tier
+end
+
+local function evoPart(
+	parent: Instance,
+	name: string,
+	size: Vector3,
+	cf: CFrame,
+	color: Color3,
+	material: Enum.Material?
+): Part
+	local p = Instance.new("Part")
+	p.Name = name
+	p.Anchored = true
+	p.CanCollide = false
+	p.Size = size
+	p.CFrame = cf
+	p.Color = color
+	p.Material = material or Enum.Material.SmoothPlastic
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.Parent = parent
+	return p
+end
+
+-- Enfeites que aparecem conforme a colmeia cresce (Config.HiveTiers).
+local function renderEvolution(plot: PlotState, tier: number)
+	local plotFolder = plot.Data.Folder :: Folder
+	local old = plotFolder:FindFirstChild("Evolucao")
+	if old then
+		old:Destroy()
+	end
+	if tier <= 0 then
+		return
+	end
+	local folder = Instance.new("Folder")
+	folder.Name = "Evolucao"
+	local plotCF: CFrame = plot.Data.CFrame
+	local wall: CFrame = plot.Data.WallOrigin
+	local gold = Color3.fromRGB(245, 190, 60)
+	-- 1: dois potes de mel gigantes na plataforma.
+	for side = -1, 1, 2 do
+		local base = plotCF * CFrame.new(side * 15, 2, -14)
+		local jar = evoPart(
+			folder,
+			"PoteGigante",
+			Vector3.new(7, 6, 6),
+			base * CFrame.new(0, 3.5, 0) * CFrame.Angles(0, 0, math.rad(90)),
+			Color3.fromRGB(255, 170, 40),
+			Enum.Material.Glass
+		)
+		jar.Shape = Enum.PartType.Cylinder
+		jar.Transparency = 0.15
+		local lid = evoPart(
+			folder,
+			"Tampa",
+			Vector3.new(1, 6.6, 6.6),
+			base * CFrame.new(0, 7.3, 0) * CFrame.Angles(0, 0, math.rad(90)),
+			Color3.fromRGB(150, 100, 55),
+			Enum.Material.Wood
+		)
+		lid.Shape = Enum.PartType.Cylinder
+		local glow = Instance.new("PointLight")
+		glow.Color = Color3.fromRGB(255, 180, 70)
+		glow.Range = 16
+		glow.Parent = jar
+	end
+	-- 2: coroa dourada no alto do arco.
+	if tier >= 2 then
+		local crownCF = wall * CFrame.new(0, 34, -3)
+		local ring = evoPart(
+			folder,
+			"Coroa",
+			Vector3.new(2.4, 9, 9),
+			crownCF * CFrame.Angles(0, 0, math.rad(90)),
+			gold,
+			Enum.Material.Neon
+		)
+		ring.Shape = Enum.PartType.Cylinder
+		for i = 0, 4 do
+			local angle = i * math.pi * 2 / 5
+			evoPart(
+				folder,
+				"Ponta",
+				Vector3.new(1.2, 3.6, 1.2),
+				crownCF * CFrame.new(math.cos(angle) * 3.8, 2.6, math.sin(angle) * 3.8),
+				gold,
+				Enum.Material.Neon
+			)
+			local gem = evoPart(
+				folder,
+				"Joia",
+				Vector3.one * 1.3,
+				crownCF * CFrame.new(math.cos(angle) * 3.8, 4.6, math.sin(angle) * 3.8),
+				if i % 2 == 0 then Color3.fromRGB(230, 40, 80) else Color3.fromRGB(80, 160, 255),
+				Enum.Material.Neon
+			)
+			gem.Shape = Enum.PartType.Ball
+		end
+	end
+	-- 3: aura de brilhos dourados em volta da parede.
+	if tier >= 3 then
+		local holder = evoPart(folder, "Aura", Vector3.new(56, 56, 2), wall * CFrame.new(0, 0, -3), gold)
+		holder.Transparency = 1
+		local aura = Instance.new("ParticleEmitter")
+		aura.Color = ColorSequence.new(Color3.fromRGB(255, 215, 90))
+		aura.LightEmission = 1
+		aura.Rate = 20
+		aura.Lifetime = NumberRange.new(2, 3)
+		aura.Speed = NumberRange.new(1, 3)
+		aura.SpreadAngle = Vector2.new(180, 180)
+		aura.Acceleration = Vector3.new(0, 2, 0)
+		aura.Size = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0),
+			NumberSequenceKeypoint.new(0.3, 0.5),
+			NumberSequenceKeypoint.new(1, 0),
+		})
+		aura.Parent = holder
+	end
+	-- 4: colmeia lendária: faixa dourada e feixe de luz para o céu.
+	if tier >= 4 then
+		local beam = evoPart(
+			folder,
+			"FeixeLendario",
+			Vector3.new(400, 6, 6),
+			wall * CFrame.new(0, 236, 8) * CFrame.Angles(0, 0, math.rad(90)),
+			Color3.fromRGB(255, 220, 120),
+			Enum.Material.Neon
+		)
+		beam.Shape = Enum.PartType.Cylinder
+		beam.Transparency = 0.6
+		beam.CastShadow = false
+		local sign = Instance.new("BillboardGui")
+		sign.Size = UDim2.fromScale(30, 4)
+		sign.StudsOffset = Vector3.new(0, 48, 0)
+		sign.MaxDistance = 600
+		sign.LightInfluence = 0
+		sign.Adornee = plot.Data.Delivery
+		local text = Instance.new("TextLabel")
+		text.Size = UDim2.fromScale(1, 1)
+		text.BackgroundTransparency = 1
+		text.Font = Enum.Font.GothamBlack
+		text.TextScaled = true
+		text.TextColor3 = gold
+		text.TextStrokeTransparency = 0.2
+		text.Text = "✨ COLMEIA LENDÁRIA ✨"
+		text.Parent = sign
+		sign.Parent = folder
+	end
+	folder.Parent = plotFolder
+end
+
 local function renderPlot(index: number)
 	local plot = plots[index]
 	local folder: Folder = plot.Data.CellsFolder
 	folder:ClearAllChildren()
 
 	local owner = plot.Owner
+	-- O cliente desenha as operárias contratadas lendo este atributo.
+	plot.Data.Folder:SetAttribute("Contratadas", if owner then PlayerDataService.Get(owner).Workers else 0)
+	renderEvolution(
+		plot,
+		if owner then HiveService.Tier(HiveService.CountCompleted(PlayerDataService.Get(owner))) else 0
+	)
 	if not owner then
 		for slot = 1, Config.Hive.MaxCells do
 			buildCell(slotCFrame(plot, slot), slot, "Vazia", 0).Parent = folder
@@ -368,15 +535,28 @@ function HiveService.TryDeliver(player: Player, index: number, maxDistance: numb
 	local cargo = InventoryService.Take(player)
 	local profile = PlayerDataService.Get(player)
 
-	local honey = cargo.Nectar * Config.NectarToHoneyRate
+	local base = cargo.Nectar * Config.NectarToHoneyRate
+	local honey = math.floor(base * HiveService.HoneyMultiplier(profile) + 0.5)
 	local clanBonus = 0
-	if honey > 0 and ClanService.HasOnlineMate(player) then
-		clanBonus = math.floor(honey * Config.Clan.HoneyBonus + 0.5)
+	if base > 0 and ClanService.HasOnlineMate(player) then
+		clanBonus = math.floor(base * Config.Clan.HoneyBonus + 0.5)
 		honey += clanBonus
+	end
+	local friendBonus = 0
+	if base > 0 and ClanService.HasFriendOnline(player) then
+		friendBonus = math.floor(base * Config.FriendBonus + 0.5)
+		honey += friendBonus
 	end
 	local points = 0
 	for rarity, amount in cargo.Combs do
 		points += amount * Config.Rarities[rarity].BuildContribution
+	end
+	-- Noite: risco maior, recompensa maior. Favo raro entregue à noite vale mel extra.
+	local rare = cargo.Combs.Raro or 0
+	local nightBonus = 0
+	if rare > 0 and workspace:GetAttribute("IsNight") == true then
+		nightBonus = rare * Config.DayNight.NightRareHoneyBonus
+		honey += nightBonus
 	end
 
 	profile.Honey += honey
@@ -387,13 +567,24 @@ function HiveService.TryDeliver(player: Player, index: number, maxDistance: numb
 	notify(
 		player,
 		`Entregue: +{honey} mel, +{points} pts de favo`
-			.. (if clanBonus > 0 then ` (colônia +{clanBonus})` else ""),
+			.. (if clanBonus > 0 then ` (colônia +{clanBonus})` else "")
+			.. (if friendBonus > 0 then ` (amigos +{friendBonus})` else ""),
 		"ok"
 	)
+	if nightBonus > 0 then
+		notify(player, `🌙 Favo raro entregue à noite: +{nightBonus} mel extra!`, "ok")
+	end
 	ProgressionService.AddXP(player, honey * Config.Progression.XP.HoneyDelivered)
 	QuestService.Add(player, "Mel", honey)
+	if rare > 0 then
+		QuestService.Add(player, "RaroEntregue", rare)
+		if nightBonus > 0 then
+			QuestService.Add(player, "RaroNoturno", rare)
+		end
+	end
 	HiveService.CollectStored(player, true)
-	Remotes.Get("Effect"):FireAllClients("entrega", plot.Data.Delivery.Position, player.UserId)
+	local floating = if honey > 0 then `+{honey} 🍯 mel` else `+{points} pts de favo`
+	Remotes.Get("Effect"):FireAllClients("entrega", plot.Data.Delivery.Position, player.UserId, floating)
 	renderPlot(index)
 	Notifier.Changed(player)
 end
@@ -436,13 +627,51 @@ end
 
 function HiveService.StorageCapacity(profile: Types.Profile): number
 	return HiveService.CountCompleted(profile) * Config.Hive.StoragePerCell
+		+ profile.Workers * Config.Workers.StorageEach
+end
+
+-- Bônus permanente de mel dos renascimentos (1 = sem bônus).
+function HiveService.HoneyMultiplier(profile: Types.Profile): number
+	return 1 + profile.Rebirths * Config.Rebirth.HoneyBonus
+end
+
+-- Mel por minuto que a colmeia fabrica sozinha.
+function HiveService.HoneyPerMinute(profile: Types.Profile): number
+	local cells = HiveService.CountCompleted(profile)
+	local base = cells * Config.Hive.HoneyPerCellPerMinute + profile.Workers * Config.Workers.HoneyPerMinute
+	return base * HiveService.HoneyMultiplier(profile)
 end
 
 -- Soma a produção de `seconds` segundos (puro, testável).
 function HiveService.Produce(profile: Types.Profile, seconds: number)
-	local cells = HiveService.CountCompleted(profile)
-	local produced = cells * Config.Hive.HoneyPerCellPerMinute * (seconds / 60)
+	local produced = HiveService.HoneyPerMinute(profile) * (seconds / 60)
 	profile.HiveHoney = math.min(HiveService.StorageCapacity(profile), profile.HiveHoney + produced)
+end
+
+function HiveService.WorkerCost(hired: number): number
+	return math.floor(Config.Workers.BaseCost * Config.Workers.CostGrowth ^ hired + 0.5)
+end
+
+function HiveService.RebirthCost(rebirths: number): number
+	return math.floor(Config.Rebirth.BaseCost * Config.Rebirth.CostGrowth ^ rebirths + 0.5)
+end
+
+-- Renascer (regra pura, testável): zera a colmeia e as melhorias, mantém
+-- XP, acessórios, mascotes, conquistas e colônia; soma 1 renascimento.
+function HiveService.ApplyRebirth(profile: Types.Profile)
+	profile.Rebirths += 1
+	profile.Honey = 0
+	profile.CombPoints = 0
+	profile.HiveHoney = 0
+	profile.Workers = 0
+	profile.Cells = {}
+	for slot = 1, Config.Hive.InitialCells do
+		table.insert(profile.Cells, { Slot = slot, Progress = 100, Completed = true })
+	end
+	for name in profile.Upgrades do
+		profile.Upgrades[name] = 0
+	end
+	profile.Stats.Renascer = (profile.Stats.Renascer or 0) + 1
 end
 
 -- Recolhe o mel guardado na colmeia. `silent` evita aviso duplicado na entrega.
@@ -544,6 +773,24 @@ function HiveService:Start()
 		task.spawn(assign, player)
 	end
 
+	-- Entrega automática: chegou perto do pote com carga, entrega sozinho.
+	-- (O aviso "Entregar carga" e o botão do painel continuam funcionando.)
+	task.spawn(function()
+		while true do
+			task.wait(0.4)
+			for player, index in plotOfPlayer do
+				if
+					player.Parent
+					and PlayerDataService.IsLoaded(player)
+					and not InventoryService.IsEmpty(player)
+					and isNear(player, plots[index].Data.Delivery.Position, Config.AutoDeliver.Distance)
+				then
+					HiveService.TryDeliver(player, index, Config.AutoDeliver.Distance)
+				end
+			end
+		end
+	end)
+
 	-- Botões do painel "Sua colmeia" (alcance maior que o dos avisos no mundo).
 	Remotes.Get("RequestHiveAction").OnServerEvent:Connect(function(player, action)
 		local index = plotOfPlayer[player]
@@ -561,6 +808,56 @@ function HiveService:Start()
 				notify(player, "Volte para perto da sua colmeia para recolher o mel.", "erro")
 			end
 		end
+	end)
+
+	-- Contratar operária.
+	Remotes.Get("RequestWorker").OnServerEvent:Connect(function(player)
+		local index = plotOfPlayer[player]
+		if not index or not PlayerDataService.IsLoaded(player) then
+			return
+		end
+		local profile = PlayerDataService.Get(player)
+		if profile.Workers >= Config.Workers.Max then
+			notify(player, "Sua colmeia já tem o máximo de operárias.", "info")
+			return
+		end
+		local cost = HiveService.WorkerCost(profile.Workers)
+		if profile.Honey < cost then
+			notify(player, `Contratar uma operária custa {cost} mel.`, "erro")
+			return
+		end
+		profile.Honey -= cost
+		profile.Workers += 1
+		notify(player, `🐝 Operária contratada! Agora são {profile.Workers}.`, "ok")
+		renderPlot(index)
+		Notifier.Changed(player)
+	end)
+
+	-- Renascer.
+	Remotes.Get("RequestRebirth").OnServerEvent:Connect(function(player)
+		local index = plotOfPlayer[player]
+		if not index or not PlayerDataService.IsLoaded(player) then
+			return
+		end
+		local profile = PlayerDataService.Get(player)
+		local level = Levels.FromXP(profile.XP)
+		local cost = HiveService.RebirthCost(profile.Rebirths)
+		if level < Config.Rebirth.MinLevel then
+			notify(player, `Renascer libera no nível {Config.Rebirth.MinLevel}.`, "erro")
+			return
+		end
+		if profile.Honey < cost then
+			notify(player, `Renascer custa {cost} mel.`, "erro")
+			return
+		end
+		HiveService.ApplyRebirth(profile)
+		InventoryService.Take(player) -- a carga também some
+		InventoryService.Refresh(player)
+		local percent = math.floor(profile.Rebirths * Config.Rebirth.HoneyBonus * 100 + 0.5)
+		notify(player, `⭐ Você renasceu! Bônus permanente: +{percent}% de mel.`, "ok")
+		Remotes.Get("Effect"):FireAllClients("nivel", plots[index].Data.Delivery.Position, player.UserId)
+		renderPlot(index)
+		Notifier.Changed(player)
 	end)
 
 	-- Produção passiva de mel a cada 5 segundos.

@@ -62,7 +62,41 @@ function PredatorBase:IsValidTarget(
 	return root ~= nil and self:CanEnter(root.Position)
 end
 
--- Jogador válido mais próximo dentro de `range`.
+-- Linha de visão: terreno ou cenário no meio impedem detectar (não "vê"
+-- através de paredes e morros). Ignora o próprio predador e as abelhas.
+local sightParams = RaycastParams.new()
+sightParams.FilterType = Enum.RaycastFilterType.Exclude
+sightParams.IgnoreWater = true
+
+function PredatorBase:CanSee(target: Vector3): boolean
+	local ignore: { Instance } = {}
+	if self.Model then
+		table.insert(ignore, self.Model)
+	end
+	for _, player in Players:GetPlayers() do
+		if player.Character then
+			table.insert(ignore, player.Character)
+		end
+	end
+	local origin = self.Position
+	-- Peças invisíveis (zonas, marcadores) não bloqueiam: ignora e tenta de novo.
+	for _ = 1, 4 do
+		sightParams.FilterDescendantsInstances = ignore
+		local hit = workspace:Raycast(origin, target - origin, sightParams)
+		if not hit then
+			return true
+		end
+		local instance = hit.Instance
+		if instance:IsA("BasePart") and instance.Transparency >= 0.9 and instance ~= workspace.Terrain then
+			table.insert(ignore, instance)
+		else
+			return false
+		end
+	end
+	return true
+end
+
+-- Jogador válido mais próximo dentro de `range` (e à vista).
 function PredatorBase:FindTarget(
 	range: number,
 	isAlive: (Player) -> boolean,
@@ -73,7 +107,7 @@ function PredatorBase:FindTarget(
 		if self:IsValidTarget(player, isAlive, isProtected) then
 			local root = (player.Character :: Model):FindFirstChild("HumanoidRootPart") :: BasePart
 			local distance = (root.Position - self.Position).Magnitude
-			if distance <= bestDistance then
+			if distance <= bestDistance and self:CanSee(root.Position) then
 				best, bestDistance = player, distance
 			end
 		end
