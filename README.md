@@ -2,11 +2,13 @@
 
 Jogo para Roblox em Luau. O código é editado no **VS Code** e sincronizado com o **Roblox Studio** pelo **Rojo**.
 
+> **Apresentação:** tecla **T** = tour cinematográfico. Para publicar, veja `docs/PUBLICAR.md`; em inglês, `docs/README_EN.md`; vídeo, `docs/ROTEIRO_VIDEO.md`.
+>
 > **Salto 22:** ciclo completo guiado pelas 4 referências (veja `docs/ENTREGA_SALTO22.md`: o que mudou, o que foi validado, a lista curta do que depende da sua conta e a comparação honesta com as referências). **Ainda não executado no Roblox Studio.**
 >
 > **Estado anterior:** jogo completo para teste, agora com voo inclinando nas curvas, arrancada, missões em sequência, mel fabricado pela colmeia, especialidades, painel com abas, animações de coleta/nível, pólen e vaga-lumes, e um pacote de modelos 3D próprios (`modelos3d/`). Inclui: voo, mapa com árvores-colmeia, flores gigantes, bosque e Colmeia Real; três raridades de favo; colmeia que cresce; melhorias e acessórios; dia e noite; aranhas; vida, derrota e carga perdida; combate na zona de disputa; nível/XP; salvamento. Também: tela de abertura, tutorial, configurações, clima, Caverna de Cristal, Lago das Libélulas, Vespa Gigante (chefe), colmeia que evolui, Besouro mercador (poções e trocas), chuva de pólen, conquistas, mascotes, Rainha Abelha com pedidos especiais, recompensa diária, colônias (clãs), praça com ranking de mel e sons próprios. Veja `docs/ROADMAP.md` (roteiro de teste), `docs/MODELOS_3D.md` (modelos 3D) e `docs/SONS.md` (ligar os sons).
 
-**Controles (PC):** WASD voa · Espaço sobe · Ctrl/Q desce · **Shift arranca** (gasta fôlego) · **A/D** voam de lado · **duplo toque em A/D** faz pirueta · **G** liga/desliga a trilha dourada até o objetivo · **P** configurações · **V** câmera atrás da abelha · **H** tela limpa · segure E para coletar/entregar/construir · clique ataca (zona de disputa) · 1 Coletar · 2 Sua colmeia (ou U) · 3 Colônias (clã) · Esc solta o mouse.
+**Controles (PC):** WASD voa · Espaço sobe · Ctrl/Q desce · **Shift arranca** (gasta fôlego) · **A/D** voam de lado · **duplo toque em A/D** faz pirueta · **G** liga/desliga a trilha dourada até o objetivo · **P** configurações · **V** câmera atrás da abelha · **H** tela limpa · **T** tour de apresentação · segure E para coletar/entregar/construir · clique ataca (zona de disputa) · 1 Coletar · 2 Sua colmeia (ou U) · 3 Colônias (clã) · Esc solta o mouse.
 **Celular:** joystick + botões Subir/Descer/Arrancar/Atacar · toque nos avisos e na barra de ações.
 
 ---

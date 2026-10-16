@@ -16,12 +16,20 @@
 | Onda 2 | Clima (chuva/neblina), Caverna de Cristal, Lago das Libélulas (predador novo), colmeia que evolui (4 níveis), Vespa Gigante (chefe cooperativo à noite) | ✅ código pronto |
 | Onda 3 | Tela de abertura com JOGAR, tutorial com a Rainha, configurações (P / ⚙), qualidade baixa para celular | ✅ código pronto |
 | Salto 20 | Câmera atrás da abelha (V), Renascer, operárias contratadas, melhorias Sorte e Fôlego, missões diárias, códigos, baús do tesouro, anéis de impulso, corrida até a Ilha nas Nuvens, Ilha nas Nuvens, flor arco-íris, borboletas, plaquinha com nível/⭐, bônus de amigos, ícones no minimapa, 3 acessórios novos, 4 conquistas, ⭐ no ranking, comandos de teste | ✅ código pronto |
+| Salto 25 | Versão de apresentação: montanhas do horizonte montadas no cliente (sempre visíveis), tour cinematográfico (T ou botão nas Configurações), guia de publicação (`docs/PUBLICAR.md`), README em inglês (`docs/README_EN.md`) e roteiro do vídeo (`docs/ROTEIRO_VIDEO.md`) | ✅ código pronto (não rodou no Studio) |
 | Salto 24 | Gráficos: montanhas altas e castelo sempre visíveis (modelos Persistent no streaming), névoa mais leve, iluminação Future com sombras suaves, água turquesa com reflexo, andaimes com escada, roldana e balde nas colmeias, trilhas de terra até colmeias/castelo/lago/caverna, campo com flores do tamanho da abelha, lavandas e tufos de grama | ✅ código pronto (não rodou no Studio) |
 | Salto 23 | Paisagem da referência: cordilheira no horizonte, colinas, 2 grupos de penhascos com casinhas de favo, lanternas, pontes de corda e cachoeiras com lago; cores mais vivas e fundo desfocado; pirueta lateral (duplo toque em A/D) | ✅ código pronto (não rodou no Studio) |
 | Salto 22 | Ciclo completo do PROMPT_COMPLETO: derrota única (metade da carga cai), noite com risco e recompensa, objetivo Rei/Rainha da Colmeia, tutorial de 7 passos, patas e favo na 1ª pessoa, carga visível no corpo, gotas de néctar, contorno de proximidade, predadores com linha de visão, trava de sessão do perfil, validação de deslocamento, sensibilidade/reduzir movimento/qualidade média (ver `docs/ENTREGA_SALTO22.md`) | ✅ código pronto (não rodou no Studio) |
 | Salto 21 | Abelhas de frente (jogador, operárias, mascotes, Rainha), Rainha vira o rosto para quem chega, painel "próximo passo" no topo, entrega automática no pote, combo de coleta (até x5), números flutuantes (+3 🌼 / +40 🍯), confete ao subir de nível, coleta mais rápida, tecla H (tela limpa) | ✅ código pronto |
 
 "Código pronto" = passou na verificação de tipos e nos testes de lógica, mas ainda precisa do teste no Studio abaixo.
+
+## Roteiro de teste — Salto 25
+
+1. **Horizonte:** na Saída aparece `[Abelhas:SceneryController] 24 picos no horizonte`. Suba alto: montanhas com neve em volta do vale.
+2. **Tour:** aperte **T**. Faixas de cinema, 9 cenas com título, e no fim volta ao jogo. T no meio do tour sai na hora.
+3. **Botão:** P → "🎬 Tour de apresentação (T)" faz o mesmo.
+4. **Depois do tour:** HUD de volta, câmera normal (V continua funcionando).
 
 ## Roteiro de teste — Salto 24
 

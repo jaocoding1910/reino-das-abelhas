@@ -79,6 +79,13 @@ Config.Movement = {
 	BlockSeconds = 2, -- coleta bloqueada depois de um salto suspeito
 }
 
+-- Cordilheira do horizonte (montada no cliente: SceneryController).
+Config.Scenery = { Peaks = 24, RadiusMin = 1190, RadiusMax = 1260 }
+
+-- Tour de apresentação (tecla T ou botão nas Configurações): a câmera passeia
+-- pelos lugares principais com títulos na tela. Ótimo para gravar o vídeo.
+Config.Tour = { ShotSeconds = 6.5, FadeSeconds = 0.6 }
+
 -- Combo: coletar seguido (sem parar mais que Window segundos) dá néctar extra.
 Config.Combo = {
 	Window = 10, -- segundos para a próxima coleta manter o combo

@@ -1574,62 +1574,8 @@ local function buildLandscape(parent: Instance, rng: Random)
 	local terrain = workspace.Terrain
 	local royalAngle = math.atan2(Config.Map.RoyalHive.Position.Z, Config.Map.RoyalHive.Position.X)
 
-	-- 1. Cordilheira no horizonte: picos ALTOS (300–400 studs) feitos de peças
-	-- (elipsoides), que passam por cima das copas e aparecem de qualquer lugar.
-	-- Peças grandes são baratas (uma peça por forma) e chegam ao cliente.
-	-- Model "Persistent": o Roblox manda para todos os clientes mesmo longe
-	-- (com streaming, peças a mais de ~1000 studs não chegavam e o céu ficava vazio).
-	local mountains = Instance.new("Model")
-	mountains.Name = "Montanhas"
-	mountains.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
-	mountains.Parent = folder
-	local function ellipsoid(
-		name: string,
-		size: Vector3,
-		center: Vector3,
-		color: Color3,
-		material: Enum.Material
-	)
-		local part = newPart(name, size, CFrame.new(center), color, mountains)
-		part.Material = material
-		part.CastShadow = false
-		local mesh = Instance.new("SpecialMesh")
-		mesh.MeshType = Enum.MeshType.Sphere
-		mesh.Parent = part
-		return part
-	end
-	local peaks = 24
-	for i = 1, peaks do
-		local angle = (i / peaks) * math.pi * 2 + rng:NextNumber(-0.05, 0.05)
-		local radius = rng:NextNumber(1190, 1260) -- atrás dos penhascos (que ficam a ~950)
-		local base = Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
-		local width = rng:NextNumber(230, 330)
-		local height = rng:NextNumber(480, 700)
-		-- Saia verde larga, pico de pedra e (às vezes) neve no topo.
-		ellipsoid(
-			"Encosta",
-			Vector3.new(width * 1.6, height * 0.42, width * 1.6),
-			base + Vector3.new(0, 10, 0),
-			Color3.fromRGB(86, 128, 70),
-			Enum.Material.Grass
-		)
-		ellipsoid(
-			"Pico",
-			Vector3.new(width, height, width * 0.9),
-			base + Vector3.new(rng:NextNumber(-20, 20), 40, 0),
-			Color3.fromRGB(122, 118, 126),
-			Enum.Material.Slate
-		)
-		if rng:NextNumber() < 0.55 then
-			ellipsoid(
-				"Neve",
-				Vector3.new(width * 0.42, height * 0.2, width * 0.4),
-				base + Vector3.new(0, 40 + height * 0.42, 0),
-				Color3.fromRGB(240, 245, 252),
-				Enum.Material.Snow
-			)
-		end
-	end
+	-- 1. A cordilheira do horizonte é montada no CLIENTE (SceneryController):
+	-- peças locais existem sempre, sem depender do streaming do servidor.
 
 	-- 2. Colinas no pé das montanhas (longe do castelo, para não esconder o palácio).
 	for i = 1, 26 do

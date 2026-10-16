@@ -27,6 +27,7 @@ local Remotes = require(Shared.Remotes)
 local ClientSettings = require(script.Parent.Parent.UI.ClientSettings)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local W = require(script.Parent.Parent.UI.Widgets)
+local TourController = require(script.Parent.TourController)
 
 local OnboardingController = {}
 
@@ -347,6 +348,19 @@ local function buildSettings(gui: ScreenGui)
 	close.Modal = true
 	close.Activated:Connect(function()
 		panel.Visible = false
+	end)
+	-- Tour de apresentação (também na tecla T).
+	local tour = W.Button(
+		"Tour",
+		"🎬 Tour de apresentação (T)",
+		UDim2.new(0, 240, 0, 36),
+		UDim2.new(0, 20, 1, -48),
+		panel,
+		DARK_BUTTON
+	)
+	tour.Activated:Connect(function()
+		panel.Visible = false
+		TourController.Play()
 	end)
 	refs.SettingsPanel = panel
 

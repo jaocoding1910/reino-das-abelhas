@@ -14,6 +14,7 @@ local Loader = require(Shared.Util.Loader)
 require(script.UI.ClientSettings).Start()
 
 Loader.Run("Cliente", script.Controllers, {
+	"SceneryController", -- montanhas do horizonte (locais, sempre visíveis)
 	"InputController", -- A: teclado, mouse e botões de toque
 	"FlightController", -- A: voo suave, subida e descida
 	"CameraController", -- A: primeira pessoa confortável, terceira pessoa (V)
@@ -28,4 +29,5 @@ Loader.Run("Cliente", script.Controllers, {
 	"PetController", -- mascotes voando junto dos donos
 	"RaceController", -- anéis de impulso e cronômetro da corrida
 	"OnboardingController", -- tutorial com a Rainha e configurações (P)
+	"TourController", -- tour de apresentação com câmera cinematográfica (T)
 })
